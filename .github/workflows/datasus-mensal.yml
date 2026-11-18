@@ -1,0 +1,62 @@
+name: DATASUS/SINAN mensal
+
+on:
+  schedule:
+    # Dia 5 de cada mês às 09:23 de Brasília (12:23 UTC)
+    - cron: "23 12 5 * *"
+  workflow_dispatch:
+    inputs:
+      anos:
+        description: "Anos separados por vírgula (vazio = ano anterior e atual)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: atualizar-dados
+  cancel-in-progress: false
+
+env:
+  LANG: C.UTF-8
+  LC_ALL: C.UTF-8
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::jsonlite
+            any::dplyr
+            any::readr
+            any::tibble
+            any::lubridate
+            github::rfsaldanha/microdatasus
+
+      - name: Baixar e resumir SINAN
+        env:
+          ANOS_DATASUS: ${{ inputs.anos }}
+        run: Rscript scripts/03_atualizar_datasus.R
+
+      - name: Salvar no repositório
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          if git diff --cached --quiet; then
+            echo "Sem mudanças nos dados."
+          else
+            git commit -m "Atualiza resumos do SINAN/DATASUS ($(date -u +%Y-%m-%d))"
+            git pull --rebase
+            git push
+          fi
