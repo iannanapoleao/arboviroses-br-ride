@@ -49,14 +49,5 @@ jobs:
         run: Rscript scripts/03_atualizar_datasus.R
 
       - name: Salvar no repositório
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data
-          if git diff --cached --quiet; then
-            echo "Sem mudanças nos dados."
-          else
-            git commit -m "Atualiza resumos do SINAN/DATASUS ($(date -u +%Y-%m-%d))"
-            git pull --rebase
-            git push
-          fi
+        if: always()
+        run: scripts/salvar_git.sh "Atualiza resumos do SINAN/DATASUS"

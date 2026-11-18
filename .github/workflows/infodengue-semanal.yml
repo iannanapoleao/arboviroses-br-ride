@@ -10,6 +10,10 @@ on:
         description: "Carga completa do Brasil desde este ano (vazio = só as últimas semanas)"
         required: false
         default: ""
+      doencas_br:
+        description: "Doenças do Brasil, separadas por vírgula (vazio = dengue,chikungunya,zika)"
+        required: false
+        default: ""
       anos_ride:
         description: "Anos da RIDE separados por vírgula (vazio = ano anterior e atual)"
         required: false
@@ -29,7 +33,7 @@ env:
 jobs:
   atualizar:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 340
     steps:
       - uses: actions/checkout@v4
 
@@ -56,26 +60,27 @@ jobs:
           ANOS_RIDE: ${{ inputs.anos_ride }}
         run: Rscript scripts/01_atualizar_infodengue_ride.R
 
+      - name: Salvar RIDE-DF
+        run: scripts/salvar_git.sh "Atualiza InfoDengue RIDE-DF"
+
       - name: Brasil por UF (Mosqlimate)
         continue-on-error: true
+        timeout-minutes: 270
         env:
           MOSQLIMATE_API_KEY: ${{ secrets.MOSQLIMATE_API_KEY }}
           ANO_INICIAL: ${{ inputs.ano_inicial }}
+          DOENCAS_BR: ${{ inputs.doencas_br }}
         run: Rscript scripts/02_atualizar_infodengue_brasil.R
 
+      - name: Salvar Brasil
+        if: always()
+        run: scripts/salvar_git.sh "Atualiza InfoDengue Brasil por UF"
+
       - name: Mapas
+        if: always()
         continue-on-error: true
         run: Rscript scripts/04_gerar_mapas.R
 
-      - name: Salvar no repositório
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data figuras
-          if git diff --cached --quiet; then
-            echo "Sem mudanças nos dados."
-          else
-            git commit -m "Atualiza dados InfoDengue ($(date -u +%Y-%m-%d))"
-            git pull --rebase
-            git push
-          fi
+      - name: Salvar mapas
+        if: always()
+        run: scripts/salvar_git.sh "Atualiza mapas"

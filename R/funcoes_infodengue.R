@@ -100,11 +100,45 @@ achatar <- function(itens) {
   }))
 }
 
-buscar_mosqlimate_uf <- function(uf, doenca, inicio, fim, api_key, por_pagina = 100) {
+# Limite de requisições da conta (ex.: "60/m"). Devolve segundos entre chamadas.
+intervalo_mosqlimate <- function(api_key) {
+  limite <- tryCatch({
+    request("https://api.mosqlimate.org/api/user/rate-limit/") |>
+      req_headers(`X-UID-Key` = api_key) |>
+      req_user_agent(UA) |>
+      req_timeout(60) |>
+      req_perform() |>
+      resp_body_json() |>
+      (\(js) js$rate_limit)()
+  }, error = function(e) NA_character_)
+
+  message("Limite da conta no Mosqlimate: ", ifelse(is.null(limite) || is.na(limite), "desconhecido", limite))
+  if (is.null(limite) || is.na(limite) || limite == "unlimited") return(1)
+
+  partes <- strsplit(limite, "/")[[1]]
+  n <- suppressWarnings(as.numeric(partes[1]))
+  periodo <- c(s = 1, m = 60, h = 3600, d = 86400)[substr(partes[2], 1, 1)]
+  if (is.na(n) || is.na(periodo) || n <= 0) return(1)
+  # 10% de folga em relação ao limite
+  unname(periodo / n * 1.1)
+}
+
+.ultima_chamada <- new.env()
+.ultima_chamada$t <- Sys.time() - 3600
+
+esperar_vez <- function(intervalo) {
+  falta <- intervalo - as.numeric(difftime(Sys.time(), .ultima_chamada$t, units = "secs"))
+  if (falta > 0) Sys.sleep(falta)
+  .ultima_chamada$t <- Sys.time()
+}
+
+buscar_mosqlimate_uf <- function(uf, doenca, inicio, fim, api_key,
+                                 intervalo = 1, por_pagina = 300) {
   pagina <- 1
   partes <- list()
 
   repeat {
+    esperar_vez(intervalo)
     resp <- request("https://api.mosqlimate.org/api/datastore/infodengue/") |>
       req_url_query(
         page = pagina, per_page = por_pagina, disease = doenca,
@@ -112,11 +146,12 @@ buscar_mosqlimate_uf <- function(uf, doenca, inicio, fim, api_key, por_pagina = 
       ) |>
       req_headers(`X-UID-Key` = api_key, accept = "application/json") |>
       req_user_agent(UA) |>
-      req_timeout(180) |>
+      req_timeout(300) |>
+      # em 429 o httr2 respeita o cabeçalho Retry-After do servidor
       req_retry(
-        max_tries = 5,
+        max_tries = 8,
         is_transient = function(r) resp_status(r) %in% c(429, 500, 502, 503, 504),
-        backoff = function(i) 10 * i
+        backoff = function(i) min(120, 15 * i)
       ) |>
       req_perform()
 
@@ -131,7 +166,6 @@ buscar_mosqlimate_uf <- function(uf, doenca, inicio, fim, api_key, por_pagina = 
     if (NROW(itens) < por_pagina) break
 
     pagina <- pagina + 1
-    Sys.sleep(0.2)
   }
 
   if (length(partes) == 0) return(NULL)
