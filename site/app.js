@@ -11,7 +11,7 @@ const ZONAS = [
   { nome: "Êxito", cor: "#E8F1FF" },
   { nome: "Segurança", cor: "#B9D9FF" },
   { nome: "Alerta", cor: "#FFE89A" },
-  { nome: "Epidêmica", cor: "#F8C46A" }
+  { nome: "Epidêmica", cor: "#FBD9A0" }
 ];
 const NOME_DOENCA = { dengue: "Dengue", chikungunya: "Chikungunya", zika: "Zika" };
 const ANO_BASE_MIN = 2016;
@@ -301,6 +301,22 @@ function acumuladoPor(linhas, chave, ano) {
   }, d => d[chave]));
 }
 
+// Faixas: zero na cor mais clara; positivos divididos pelos quartis
+function escalaMapa(incs) {
+  const pos = incs.filter(v => v > 0).sort(d3.ascending);
+  const base = { legend: true, label: "Incidência (por 100 mil hab.)", unknown: "#EEF1F5" };
+  if (!pos.length) return { ...base, type: "threshold", domain: [1e-9], range: [PAL_MAPA[0], PAL_MAPA[1]], tickFormat: () => "0" };
+  const cortes = [...new Set([0.25, 0.5, 0.75].map(q => +d3.quantileSorted(pos, q).toPrecision(2)))]
+    .filter(v => v > 0);
+  const temZero = incs.some(v => v === 0);
+  const domain = temZero ? [1e-9, ...cortes.filter(v => v > 1e-9)] : cortes;
+  const range = temZero
+    ? [PAL_MAPA[0], ...PAL_MAPA.slice(5 - domain.length)]
+    : PAL_MAPA.slice(4 - domain.length);
+  return { ...base, type: "threshold", domain, range,
+    tickFormat: d => (d < 1e-6 ? "0" : fmtInt.format(d)) };
+}
+
 function mapa(id, geo, valores, chave, nomeDe, idSelecionado, aoClicar) {
   const w = largura(id);
   const feats = geo.features.map(f => ({ ...f, v: valores.get(f.properties[chave]) }));
@@ -311,11 +327,7 @@ function mapa(id, geo, valores, chave, nomeDe, idSelecionado, aoClicar) {
     width: w,
     height: Math.round(w * 0.78),
     projection: { type: "mercator", domain: geo },
-    color: {
-      type: "quantile", n: Math.min(5, new Set(incs).size), range: PAL_MAPA, legend: true,
-      label: "Incidência (por 100 mil hab.)", tickFormat: d => fmtInt.format(d),
-      unknown: "#EEF1F5"
-    },
+    color: escalaMapa(incs),
     marks: [
       Plot.geo(feats, { fill: f => f.v?.inc, stroke: "#fff", strokeWidth: 0.7 }),
       Plot.geo(feats.filter(f => f.properties[chave] == idSelecionado),
