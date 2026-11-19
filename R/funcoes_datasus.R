@@ -18,11 +18,12 @@ DESCARTADO <- c(dengue = "5", chikungunya = "5", zika = "2")
 baixar_sinan <- function(doenca, ano) {
   sistema <- SISTEMAS_SINAN[[doenca]]
   message("Baixando ", sistema, " ", ano, " (arquivo nacional, pode demorar)...")
+  vars_doenca <- if (doenca == "zika") setdiff(VARS_SINAN, "HOSPITALIZ") else VARS_SINAN
   baixar <- function(vars) microdatasus::fetch_datasus(
     year_start = ano, year_end = ano, information_system = sistema, vars = vars
   )
   tryCatch(
-    baixar(VARS_SINAN),
+    baixar(vars_doenca),
     error = function(e) {
       # se alguma variável não existir no arquivo, tenta trazer todas
       message("  com seleção de variáveis falhou (", conditionMessage(e), "); tentando completo")
@@ -83,9 +84,12 @@ preparar_sinan <- function(df, doenca, ano) {
   df <- df[provavel, , drop = FALSE]
   classi <- classi[provavel]
   sem <- col(df, "SEM_PRI")
+  # rotula antes do tibble(): lá dentro, "doenca" passaria a ser a coluna
+  classificacao <- rotular(classi, ROT_CLASS[[doenca]], outro = "Em investigação")
+  nome_doenca <- doenca
 
   tibble::tibble(
-    doenca        = doenca,
+    doenca        = nome_doenca,
     ano_arquivo   = as.integer(ano),
     ano           = suppressWarnings(as.integer(substr(sem, 1, 4))),
     se            = suppressWarnings(as.integer(substr(sem, 5, 6))),
@@ -95,7 +99,7 @@ preparar_sinan <- function(df, doenca, ano) {
     faixa         = dplyr::coalesce(faixa_etaria(col(df, "NU_IDADE_N")), "Ignorada"),
     raca          = rotular(col(df, "CS_RACA"), ROT_RACA),
     escolaridade  = rotular(col(df, "CS_ESCOL_N"), ROT_ESCOL),
-    classificacao = rotular(classi, ROT_CLASS[[doenca]], outro = "Em investigação"),
+    classificacao = classificacao,
     hospitalizacao = rotular(col(df, "HOSPITALIZ"), ROT_HOSP),
     evolucao      = rotular(col(df, "EVOLUCAO"), ROT_EVOL)
   ) |>
