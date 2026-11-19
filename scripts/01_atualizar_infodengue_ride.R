@@ -7,8 +7,20 @@
 source("R/00_config.R", encoding = "UTF-8")
 source("R/funcoes_infodengue.R", encoding = "UTF-8")
 
+ANO_HISTORICO_INICIAL <- 2016L  # base do canal endêmico
+arquivo <- "data/ride/infodengue_ride_semanal.csv"
+
 anos <- Sys.getenv("ANOS_RIDE", "")
 anos <- if (nzchar(anos)) as.integer(strsplit(anos, ",")[[1]]) else c(ANO_ATUAL - 1, ANO_ATUAL)
+
+# Anos históricos que ainda não estão no arquivo entram uma vez só
+historico <- seq(ANO_HISTORICO_INICIAL, ANO_ATUAL - 2)
+ja_tem <- if (file.exists(arquivo)) {
+  unique(as.integer(readr::read_csv(arquivo, col_select = "ano", show_col_types = FALSE)$ano))
+} else integer()
+faltando <- setdiff(historico, ja_tem)
+if (length(faltando) > 0) message("Baixando histórico: ", paste(faltando, collapse = ", "))
+anos <- sort(unique(c(faltando, anos)))
 
 ride <- carregar_ride()
 combinacoes <- expand.grid(geocode = ride$geocode, doenca = names(DOENCAS),

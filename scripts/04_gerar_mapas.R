@@ -18,6 +18,14 @@ fonte_txt <- function(se_max) {
           se_max, ano_mapa)
 }
 
+# Malhas em GeoJSON para o painel web (só cria se ainda não existirem)
+tryCatch({
+  ride_ref <- carregar_ride()
+  exportar_geojson(malha_ride(ride_ref) |> left_join(ride_ref, by = "geocode"),
+                   "data/ref/ride.geojson")
+  exportar_geojson(malha_ufs(), "data/ref/ufs.geojson")
+}, error = function(e) message("Falha ao exportar GeoJSON: ", conditionMessage(e)))
+
 # -----------------------------------------------------------------------------
 # RIDE-DF
 # -----------------------------------------------------------------------------

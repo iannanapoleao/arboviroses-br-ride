@@ -3,10 +3,14 @@
 # Precisa da chave do Mosqlimate na variável de ambiente MOSQLIMATE_API_KEY
 # (no GitHub: Settings > Secrets and variables > Actions).
 #
-# Cada execução baixa só as últimas SEMANAS_JANELA semanas (padrão 8).
-# Para a carga inicial, defina ANO_INICIAL (ex.: ANO_INICIAL=2025).
+# O Mosqlimate limita bastante as chamadas, então este script é RETOMÁVEL:
+#  - salva o arquivo a cada UF concluída;
+#  - pula as UFs atualizadas nos últimos DIAS_VALIDADE dias (padrão 5);
+#  - UF sem dado nenhum recebe a carga do ano inteiro (ou desde ANO_INICIAL);
+#  - UF com dado antigo recebe só as últimas SEMANAS_JANELA semanas (padrão 8);
+#  - para sozinho ao chegar em TEMPO_MAX_MIN minutos (padrão 200) e a próxima
+#    execução continua de onde parou.
 # Para rodar só algumas doenças: DOENCAS_BR=dengue,zika
-# O arquivo é salvo ao fim de cada doença, então uma queda no meio não perde tudo.
 # Saída: data/brasil/infodengue_uf_semanal.csv
 # =============================================================================
 
@@ -19,63 +23,69 @@ if (!nzchar(api_key)) {
   quit(save = "no", status = 0)
 }
 
-arquivo <- "data/brasil/infodengue_uf_semanal.csv"
-ano_inicial <- Sys.getenv("ANO_INICIAL", "")
+arquivo       <- "data/brasil/infodengue_uf_semanal.csv"
+ano_inicial   <- as.integer(Sys.getenv("ANO_INICIAL", ANO_ATUAL))
+if (is.na(ano_inicial)) ano_inicial <- ANO_ATUAL
+dias_validade <- as.numeric(Sys.getenv("DIAS_VALIDADE", "5"))
+tempo_max     <- as.numeric(Sys.getenv("TEMPO_MAX_MIN", "200"))
 doencas <- Sys.getenv("DOENCAS_BR", "")
 doencas <- if (nzchar(doencas)) trimws(strsplit(doencas, ",")[[1]]) else names(DOENCAS)
 
-fim <- Sys.Date()
-inicio <- if (nzchar(ano_inicial)) {
-  inicio_se(as.integer(ano_inicial), 1)
-} else if (!file.exists(arquivo)) {
-  inicio_se(ANO_ATUAL, 1)
+hoje <- Sys.Date()
+t_inicio <- Sys.time()
+
+# Situação de cada doença x UF no arquivo atual
+situacao <- if (file.exists(arquivo)) {
+  readr::read_csv(arquivo, show_col_types = FALSE,
+                  col_types = readr::cols(.default = "c")) |>
+    mutate(ano = as.integer(ano), atualizado_em = as.Date(atualizado_em)) |>
+    group_by(doenca, uf) |>
+    summarise(ano_min = min(ano, na.rm = TRUE),
+              ultima = max(atualizado_em, na.rm = TRUE), .groups = "drop")
 } else {
-  fim - 7 * SEMANAS_JANELA
+  tibble::tibble(doenca = character(), uf = character(),
+                 ano_min = integer(), ultima = as.Date(character()))
 }
 
-message("Recorte Brasil: ", inicio, " a ", fim, " | doenças: ", paste(doencas, collapse = ", "))
 intervalo <- intervalo_mosqlimate(api_key)
-message("Intervalo entre chamadas: ", round(intervalo, 2), " s")
+message("Doenças: ", paste(doencas, collapse = ", "), " | ano inicial: ", ano_inicial,
+        " | limite de tempo: ", tempo_max, " min")
 
-total_falhas <- 0
+feitas <- 0; puladas <- 0; falhas <- 0; parou_por_tempo <- FALSE
+
 for (doenca in doencas) {
-  resultados <- list()
-  falhas_seguidas <- 0
-
   for (uf in unname(UFS)) {
+    min_passados <- as.numeric(difftime(Sys.time(), t_inicio, units = "mins"))
+    if (min_passados > tempo_max) { parou_por_tempo <- TRUE; break }
+
+    s <- situacao[situacao$doenca == doenca & situacao$uf == uf, ]
+    precisa_carga <- nrow(s) == 0 || is.na(s$ano_min) || s$ano_min > ano_inicial
+    recente <- nrow(s) == 1 && !is.na(s$ultima) && (hoje - s$ultima) < dias_validade
+
+    if (!precisa_carga && recente) { puladas <- puladas + 1; next }
+
+    inicio <- if (precisa_carga) inicio_se(ano_inicial, 1) else hoje - 7 * SEMANAS_JANELA
     t0 <- Sys.time()
     mun <- tryCatch(
-      buscar_mosqlimate_uf(uf, doenca, inicio, fim, api_key, intervalo = intervalo),
+      buscar_mosqlimate_uf(uf, doenca, inicio, hoje, api_key, intervalo = intervalo),
       error = function(e) {
         message("  ", doenca, " — ", uf, ": falhou (", conditionMessage(e), ")")
         NULL
       }
     )
+    if (is.null(mun) || nrow(mun) == 0) { falhas <- falhas + 1; next }
 
-    if (is.null(mun) || nrow(mun) == 0) {
-      falhas_seguidas <- falhas_seguidas + 1
-      total_falhas <- total_falhas + 1
-      if (falhas_seguidas >= 3) {
-        message("  3 falhas seguidas em ", doenca, "; salvando o que já veio e parando.")
-        break
-      }
-      next
-    }
-
-    falhas_seguidas <- 0
-    resultados[[length(resultados) + 1]] <- agregar_uf(mun, uf)
-    message(sprintf("  %s — %s: %d linhas (%.0f s)", doenca, uf, nrow(mun),
+    novos <- agregar_uf(mun, uf)
+    novos$atualizado_em <- as.character(hoje)
+    atualizar_arquivo(novos, arquivo, chaves = c("doenca", "uf", "ano", "se"))
+    feitas <- feitas + 1
+    message(sprintf("  %s — %s: desde %s, %d linhas municipais (%.0f s)",
+                    doenca, uf, inicio, nrow(mun),
                     as.numeric(difftime(Sys.time(), t0, units = "secs"))))
   }
-
-  novos <- bind_rows(resultados)
-  if (nrow(novos) > 0) {
-    novos$atualizado_em <- as.character(Sys.Date())
-    atualizar_arquivo(novos, arquivo, chaves = c("doenca", "uf", "ano", "se"))
-  }
-  if (falhas_seguidas >= 3) break
+  if (parou_por_tempo) break
 }
 
-if (total_falhas > 0) {
-  stop(total_falhas, " UF(s) sem dados nesta execução; o que foi baixado já está salvo.")
-}
+message(sprintf("Resumo: %d UFs atualizadas, %d já em dia, %d falhas%s",
+                feitas, puladas, falhas,
+                if (parou_por_tempo) " — parou pelo limite de tempo; a próxima execução continua" else ""))

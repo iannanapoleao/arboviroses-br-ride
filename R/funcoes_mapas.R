@@ -60,6 +60,16 @@ malha_ride <- function(ride, arquivo = "data/ref/malha_ride.gpkg") {
   m
 }
 
+# GeoJSON leve para o painel web (data/ref/*.geojson)
+exportar_geojson <- function(malha, arquivo) {
+  if (file.exists(arquivo)) return(invisible(arquivo))
+  malha <- sf::st_transform(malha, 4326)
+  sf::st_write(malha, arquivo, driver = "GeoJSON", quiet = TRUE, delete_dsn = TRUE,
+               layer_options = "COORDINATE_PRECISION=4")
+  message("GeoJSON: ", arquivo)
+  invisible(arquivo)
+}
+
 # Acumulado do ano: soma dos casos / população da última semana
 acumular <- function(dados, chave, ano_alvo) {
   dados |>

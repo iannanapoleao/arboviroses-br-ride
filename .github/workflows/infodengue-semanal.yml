@@ -1,4 +1,4 @@
-name: InfoDengue semanal (RIDE-DF e Brasil)
+name: InfoDengue semanal (RIDE-DF)
 
 on:
   schedule:
@@ -6,14 +6,6 @@ on:
     - cron: "17 11 * * 2"
   workflow_dispatch:
     inputs:
-      ano_inicial:
-        description: "Carga completa do Brasil desde este ano (vazio = só as últimas semanas)"
-        required: false
-        default: ""
-      doencas_br:
-        description: "Doenças do Brasil, separadas por vírgula (vazio = dengue,chikungunya,zika)"
-        required: false
-        default: ""
       anos_ride:
         description: "Anos da RIDE separados por vírgula (vazio = ano anterior e atual)"
         required: false
@@ -33,7 +25,7 @@ env:
 jobs:
   atualizar:
     runs-on: ubuntu-latest
-    timeout-minutes: 340
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -62,19 +54,6 @@ jobs:
 
       - name: Salvar RIDE-DF
         run: scripts/salvar_git.sh "Atualiza InfoDengue RIDE-DF"
-
-      - name: Brasil por UF (Mosqlimate)
-        continue-on-error: true
-        timeout-minutes: 270
-        env:
-          MOSQLIMATE_API_KEY: ${{ secrets.MOSQLIMATE_API_KEY }}
-          ANO_INICIAL: ${{ inputs.ano_inicial }}
-          DOENCAS_BR: ${{ inputs.doencas_br }}
-        run: Rscript scripts/02_atualizar_infodengue_brasil.R
-
-      - name: Salvar Brasil
-        if: always()
-        run: scripts/salvar_git.sh "Atualiza InfoDengue Brasil por UF"
 
       - name: Mapas
         if: always()

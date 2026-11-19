@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Painel de Arboviroses — Brasil e RIDE-DF</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topo">
+    <div class="topo-conteudo">
+      <div>
+        <p class="sobretitulo">Núcleo de Vigilância Epidemiológica e Imunizações · Região Leste</p>
+        <h1>Painel de Arboviroses — Brasil e RIDE-DF</h1>
+        <p class="atualizacao" id="atualizacao">Carregando dados…</p>
+      </div>
+    </div>
+  </header>
+
+  <nav class="filtros" aria-label="Filtros">
+    <div class="filtros-conteudo">
+      <div class="grupo">
+        <span class="rotulo">Doença</span>
+        <div class="segmentado" id="filtro-doenca" role="radiogroup">
+          <button data-valor="dengue" class="ativo" role="radio" aria-checked="true">Dengue</button>
+          <button data-valor="chikungunya" role="radio" aria-checked="false">Chikungunya</button>
+          <button data-valor="zika" role="radio" aria-checked="false">Zika</button>
+        </div>
+      </div>
+      <div class="grupo">
+        <label class="rotulo" for="filtro-territorio">Território</label>
+        <select id="filtro-territorio"></select>
+      </div>
+      <div class="grupo">
+        <label class="rotulo" for="filtro-ano">Ano</label>
+        <select id="filtro-ano"></select>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <section class="cards" id="cards" aria-live="polite"></section>
+
+    <section class="linha">
+      <article class="painel">
+        <h2>Incidência acumulada — RIDE-DF</h2>
+        <p class="nota">Casos notificados por 100 mil habitantes no ano. Clique num município para filtrar.</p>
+        <div id="mapa-ride" class="grafico"></div>
+      </article>
+      <article class="painel">
+        <h2>Incidência acumulada — Brasil por UF</h2>
+        <p class="nota">Casos notificados por 100 mil habitantes no ano. Clique numa UF para filtrar.</p>
+        <div id="mapa-brasil" class="grafico"></div>
+      </article>
+    </section>
+
+    <section class="linha">
+      <article class="painel">
+        <h2 id="titulo-curva">Casos por semana epidemiológica</h2>
+        <p class="nota" id="nota-curva"></p>
+        <div id="curva" class="grafico"></div>
+      </article>
+      <article class="painel">
+        <h2 id="titulo-canal">Canal endêmico</h2>
+        <p class="nota" id="nota-canal"></p>
+        <div id="canal" class="grafico"></div>
+      </article>
+    </section>
+
+    <section class="metodologia">
+      <h2>Sobre os dados</h2>
+      <ul>
+        <li><strong>Fonte:</strong> InfoDengue (Fiocruz/FGV), a partir das notificações do SINAN. RIDE-DF pela API pública do InfoDengue; Brasil por UF via Mosqlimate. Atualização automática semanal.</li>
+        <li><strong>Casos:</strong> casos notificados por semana de início dos sintomas. As semanas mais recentes são preliminares e costumam subir nas atualizações seguintes.</li>
+        <li><strong>Incidência:</strong> casos ÷ população × 100 mil, com a população usada pelo InfoDengue.</li>
+        <li><strong>Canal endêmico:</strong> mediana, 1º e 3º quartis da incidência semanal dos anos anteriores (desde 2016), excluindo os dois anos de maior incidência do território. Zonas: êxito (abaixo do Q1), segurança (Q1 a mediana), alerta (mediana a Q3) e epidêmica (acima do Q3).</li>
+        <li><strong>DF:</strong> nas fontes públicas, o Distrito Federal entra como um município só (Brasília), sem quebra por Região Administrativa.</li>
+        <li>RIDE-DF conforme a LC 94/1998, com redação da LC 163/2018 (DF + 29 municípios de GO + 4 de MG).</li>
+      </ul>
+      <p class="rodape">Código e dados: <a href="https://github.com/iannanapoleao/arboviroses-br-ride">github.com/iannanapoleao/arboviroses-br-ride</a></p>
+    </section>
+  </main>
+
+  <script src="lib/d3.min.js"></script>
+  <script src="lib/plot.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
