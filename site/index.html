@@ -10,7 +10,7 @@
   <header class="topo">
     <div class="topo-conteudo">
       <div>
-        <p class="sobretitulo">Núcleo de Vigilância Epidemiológica e Imunizações · Região Leste</p>
+        <p class="sobretitulo">Vigilância das arboviroses · dados abertos</p>
         <h1>Painel de Arboviroses — Brasil e RIDE-DF</h1>
         <p class="atualizacao" id="atualizacao">Carregando dados…</p>
       </div>
@@ -56,7 +56,7 @@
 
     <section class="linha">
       <article class="painel">
-        <h2 id="titulo-curva">Casos por semana epidemiológica</h2>
+        <h2 id="titulo-curva">Curva epidêmica</h2>
         <p class="nota" id="nota-curva"></p>
         <div id="curva" class="grafico"></div>
       </article>
@@ -64,6 +64,33 @@
         <h2 id="titulo-canal">Canal endêmico</h2>
         <p class="nota" id="nota-canal"></p>
         <div id="canal" class="grafico"></div>
+      </article>
+    </section>
+
+    <h2 class="secao" id="titulo-perfil">Perfil dos casos prováveis</h2>
+    <p class="nota secao-nota" id="nota-perfil"></p>
+    <section class="linha">
+      <article class="painel">
+        <h2>Sexo e faixa etária</h2>
+        <p class="nota">Casos prováveis por faixa etária. Sexo ou idade ignorados ficam de fora.</p>
+        <div id="piramide" class="grafico"></div>
+      </article>
+      <article class="painel">
+        <h2>Gravidade</h2>
+        <p class="nota" id="nota-gravidade">Classificação final, hospitalização e óbitos.</p>
+        <div id="gravidade" class="grafico"></div>
+      </article>
+    </section>
+    <section class="linha">
+      <article class="painel">
+        <h2>Raça/cor</h2>
+        <p class="nota">Proporção dos casos prováveis.</p>
+        <div id="raca" class="grafico"></div>
+      </article>
+      <article class="painel">
+        <h2>Escolaridade</h2>
+        <p class="nota">Proporção dos casos prováveis.</p>
+        <div id="escolaridade" class="grafico"></div>
       </article>
     </section>
 
@@ -75,6 +102,7 @@
         <li><strong>Incidência:</strong> casos ÷ população × 100 mil, com a população usada pelo InfoDengue.</li>
         <li><strong>Canal endêmico:</strong> mediana, 1º e 3º quartis da incidência semanal dos anos anteriores (desde 2016), excluindo os dois anos de maior incidência do território. Zonas: êxito (abaixo do Q1), segurança (Q1 a mediana), alerta (mediana a Q3) e epidêmica (acima do Q3).</li>
         <li><strong>Zika:</strong> o InfoDengue tem dados de Zika da RIDE-DF só até o início de 2024; por isso o painel abre a Zika no último ano disponível.</li>
+        <li><strong>Perfil (SINAN/DATASUS):</strong> casos prováveis, isto é, notificados menos descartados, pela semana de início dos sintomas e pelo local de residência. O DATASUS publica os arquivos com atraso, então o ano corrente pode estar incompleto ou indisponível. Quando o InfoDengue não tem um ano (caso da Zika depois de 2024), a curva e os mapas usam os casos prováveis do SINAN.</li>
         <li><strong>DF:</strong> nas fontes públicas, o Distrito Federal entra como um município só (Brasília), sem quebra por Região Administrativa.</li>
         <li>RIDE-DF conforme a LC 94/1998, com redação da LC 163/2018 (DF + 29 municípios de GO + 4 de MG).</li>
       </ul>
@@ -84,6 +112,7 @@
 
   <script src="lib/d3.min.js"></script>
   <script src="lib/plot.umd.min.js"></script>
+  <script src="lib/html-to-image.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

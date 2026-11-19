@@ -30,7 +30,7 @@ const fmtPct = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0, signDi
 const fmtData = d => d ? d.toLocaleDateString("pt-BR", { timeZone: "UTC" }) : "";
 
 const estado = { doenca: "dengue", territorio: "ride:total", ano: null };
-const dados = { ride: [], brasil: [], geoRide: null, geoUf: null, municipios: new Map() };
+const dados = { ride: [], brasil: [], perfil: [], geoRide: null, geoUf: null, municipios: new Map() };
 
 // ---------------------------------------------------------------------------
 // Carga
@@ -46,13 +46,46 @@ function parseLinha(d) {
     se: +d.se,
     data: d.data_ini_se ? new Date(d.data_ini_se + "T00:00:00Z") : null,
     casos: num(d.casos),
+    est: num(d.casos_est),
     pop: num(d.pop),
-    atualizado: d.atualizado_em || ""
+    atualizado: d.atualizado_em || "",
+    fonte: "InfoDengue"
   };
 }
 
-async function csvOuVazio(url) {
-  try { return (await d3.csv(url)).map(parseLinha); } catch (e) { return []; }
+function parsePerfil(d) {
+  return { doenca: d.doenca, ano: +d.ano, nivel: d.nivel, territorio: d.territorio,
+           variavel: d.variavel, categoria: d.categoria, n: +d.n };
+}
+
+async function csvOuVazio(url, parse = parseLinha) {
+  try { return (await d3.csv(url)).map(parse); } catch (e) { return []; }
+}
+
+// Anos sem InfoDengue (ex.: Zika depois de 2024) recebem os casos prováveis
+// semanais do SINAN/DATASUS, com a população do InfoDengue da mesma unidade
+function completarComSinan(linhas, perfil, nivel) {
+  const chave = nivel === "mun" ? "geocode" : "uf";
+  const pop = new Map();
+  for (const d of linhas) if (Number.isFinite(d.pop)) {
+    const k = `${d[chave]}|${d.ano}`;
+    pop.set(k, Math.max(pop.get(k) || 0, d.pop));
+  }
+  const comInfo = new Set(d3.rollups(linhas, v => d3.sum(v, d => d.casos || 0), d => d.doenca, d => d.ano)
+    .flatMap(([doe, anos]) => anos.filter(([, t]) => t > 0).map(([ano]) => `${doe}|${ano}`)));
+  const extra = perfil
+    .filter(p => p.nivel === nivel && p.variavel === "semana" && !comInfo.has(`${p.doenca}|${p.ano}`))
+    .map(p => {
+      const id = nivel === "mun" ? +p.territorio : p.territorio;
+      const m = nivel === "mun" ? dados.municipios.get(id) : null;
+      return {
+        doenca: p.doenca, geocode: nivel === "mun" ? id : null, municipio: m ? m.municipio : null,
+        uf: nivel === "mun" ? (m ? m.uf : null) : id, ano: p.ano, se: +p.categoria,
+        data: null, casos: p.n, est: NaN, pop: pop.get(`${id}|${p.ano}`) ?? pop.get(`${id}|${p.ano - 1}`) ?? NaN,
+        atualizado: "", fonte: "SINAN"
+      };
+    });
+  return linhas.concat(extra);
 }
 async function jsonOuNulo(url) {
   try { return rebobinar(await d3.json(url)); } catch (e) { return null; }
@@ -72,14 +105,20 @@ function rebobinar(fc) {
 }
 
 async function iniciar() {
-  const [ride, brasil, geoRide, geoUf] = await Promise.all([
+  const [ride, brasil, perfil, geoRide, geoUf] = await Promise.all([
     csvOuVazio("dados/infodengue_ride_semanal.csv"),
     csvOuVazio("dados/infodengue_uf_semanal.csv"),
+    csvOuVazio("dados/sinan_perfil.csv", parsePerfil),
     jsonOuNulo("dados/ride.geojson"),
     jsonOuNulo("dados/ufs.geojson")
   ]);
-  Object.assign(dados, { ride, brasil, geoRide, geoUf });
   for (const r of ride) if (r.geocode) dados.municipios.set(r.geocode, { municipio: r.municipio, uf: r.uf });
+  Object.assign(dados, {
+    ride: completarComSinan(ride, perfil, "mun"),
+    brasil: completarComSinan(brasil, perfil, "uf"),
+    perfil, geoRide, geoUf
+  });
+  prepararDownloads();
 
   if (!ride.length && !brasil.length) {
     document.getElementById("atualizacao").textContent = "Ainda não há dados publicados.";
@@ -184,12 +223,15 @@ function nomeTerritorio(territorio) {
 function serieSemanal(linhas) {
   const g = d3.rollups(linhas, v => ({
     casos: d3.sum(v, d => d.casos || 0),
+    est: v.some(d => Number.isFinite(d.est)) ? d3.sum(v, d => (Number.isFinite(d.est) ? d.est : d.casos || 0)) : NaN,
     pop: d3.sum(v, d => d.pop || 0),
-    data: d3.min(v, d => d.data)
+    data: d3.min(v, d => d.data),
+    sinan: v.some(d => d.fonte === "SINAN")
   }), d => d.ano, d => d.se);
   const out = [];
   for (const [ano, semanas] of g) for (const [se, v] of semanas) {
-    out.push({ ano, se, data: v.data, casos: v.casos, pop: v.pop, inc: v.pop > 0 ? v.casos / v.pop * 1e5 : NaN });
+    out.push({ ano, se, data: v.data, casos: v.casos, est: v.est, pop: v.pop, sinan: v.sinan,
+               inc: v.pop > 0 ? v.casos / v.pop * 1e5 : NaN });
   }
   return out.sort((a, b) => a.ano - b.ano || a.se - b.se);
 }
@@ -242,6 +284,7 @@ function desenhar() {
   desenharMapaBrasil();
   desenharCurva(serie);
   desenharCanal(serie);
+  desenharPerfil();
 }
 
 function desenharCards(serie) {
@@ -370,29 +413,50 @@ function desenharMapaBrasil() {
 function desenharCurva(serie) {
   const ano = estado.ano;
   const terr = nomeTerritorio(estado.territorio);
-  document.getElementById("titulo-curva").textContent = `Casos por semana epidemiológica — ${terr}`;
-  const pts = serie.filter(d => d.ano === ano || d.ano === ano - 1)
-    .map(d => ({ ...d, serie: String(d.ano) }));
-  if (!pts.length || d3.sum(pts, d => d.casos) === 0) {
-    document.getElementById("nota-curva").textContent = "";
+  document.getElementById("titulo-curva").textContent = `Curva epidêmica — ${terr}`;
+  const nota = document.getElementById("nota-curva");
+  const atual = serie.filter(d => d.ano === ano);
+  if (!atual.length || d3.sum(atual, d => d.casos) === 0) {
+    nota.textContent = "";
     return vazio("curva", "Sem casos registrados para este filtro.");
   }
-  document.getElementById("nota-curva").textContent =
-    `${NOME_DOENCA[estado.doenca]}: ${ano} comparado a ${ano - 1}. As últimas semanas são preliminares.`;
+
+  // semanas preliminares: as 3 últimas do ano mais recente da base
+  const anoMaisRecente = d3.max(dados.ride.concat(dados.brasil).filter(d => d.doenca === estado.doenca && d.casos > 0), d => d.ano);
+  const seMax = d3.max(atual, d => d.se);
+  const pts = atual.map(d => ({
+    ...d,
+    prelim: ano === anoMaisRecente && d.se > seMax - 3,
+    grupo: ano === anoMaisRecente && d.se > seMax - 3 ? "Preliminares" : "Notificados"
+  }));
+  const nowcast = pts.filter(d => d.prelim && Number.isFinite(d.est) && d.est > d.casos);
+  const fimEixo = ano === anoMaisRecente ? seMax : Math.max(52, seMax);
+  const usaSinan = pts.some(d => d.sinan);
+
+  nota.innerHTML = `${NOME_DOENCA[estado.doenca]}, ${ano}: casos por semana epidemiológica de início dos sintomas` +
+    (usaSinan ? " (casos prováveis do SINAN/DATASUS)." : " (casos notificados, InfoDengue).") +
+    `<span class="legenda-curva"><span><i style="background:${COR.azul}"></i>Notificados</span>` +
+    (pts.some(d => d.prelim) ? `<span><i style="background:${COR.azulCeu}"></i>Últimas semanas (preliminares)</span>` : "") +
+    (nowcast.length ? `<span><i style="border:2px dashed ${COR.laranja};background:none"></i>Estimado pelo nowcasting do InfoDengue</span>` : "") +
+    "</span>";
+
   const w = largura("curva");
   const plot = Plot.plot({
     width: w, height: Math.round(Math.min(380, w * 0.62)),
     marginLeft: 56,
-    x: { label: "Semana epidemiológica", domain: [1, 53], ticks: d3.range(1, 54, 4) },
-    y: { label: "Casos notificados", grid: true, tickFormat: d => fmtInt.format(d) },
-    color: { domain: [String(ano - 1), String(ano)], range: [COR.amareloArc, COR.azul], legend: true },
+    x: { type: "band", domain: d3.range(1, fimEixo + 1), label: "Semana epidemiológica", padding: 0.15,
+         tickFormat: d => (d % 4 === 1 ? d : "") },
+    y: { label: "Casos", grid: true, tickFormat: d => fmtInt.format(d) },
+    color: { domain: ["Notificados", "Preliminares"], range: [COR.azul, COR.azulCeu] },
     marks: [
-      Plot.ruleY([0], { stroke: "#ccd3dd" }),
-      Plot.areaY(pts.filter(d => d.ano === ano), { x: "se", y: "casos", fill: COR.azulGelo, fillOpacity: 0.7, curve: "monotone-x" }),
-      Plot.lineY(pts, { x: "se", y: "casos", stroke: "serie", strokeWidth: 2.4, curve: "monotone-x" }),
+      Plot.barY(nowcast, { x: "se", y: "est", fill: "#FFF6E0", stroke: COR.laranja, strokeDasharray: "4,3", strokeWidth: 1.4 }),
+      Plot.barY(pts, { x: "se", y: "casos", fill: "grupo" }),
+      Plot.ruleY([0], { stroke: "#9aa5b4" }),
       Plot.tip(pts, Plot.pointerX({
-        x: "se", y: "casos",
-        title: d => `SE ${d.se}/${d.ano}${d.data ? " (" + fmtData(d.data) + ")" : ""}\n${fmtInt.format(d.casos)} casos`
+        x: "se", y: d => Math.max(d.casos, Number.isFinite(d.est) ? d.est : 0),
+        title: d => `SE ${d.se}/${d.ano}${d.data ? " (início " + fmtData(d.data) + ")" : ""}\n${fmtInt.format(d.casos)} casos` +
+          (d.prelim ? " (preliminar)" : "") +
+          (d.prelim && Number.isFinite(d.est) && d.est > d.casos ? `\nEstimado (nowcasting): ${fmtInt.format(Math.round(d.est))}` : "")
       }))
     ]
   });
@@ -450,6 +514,150 @@ function desenharCanal(serie) {
     ]
   });
   colocar("canal", plot);
+}
+
+// ---------------------------------------------------------------------------
+// Perfil dos casos prováveis (SINAN/DATASUS)
+// ---------------------------------------------------------------------------
+const ORDEM_FAIXA = ["<1", "1-4", "5-9", "10-14", "15-19", "20-29", "30-39", "40-49", "50-59", "60-69", "70-79", "80+"];
+const ORDEM_ESCOL = ["Analfabeto", "Fund. I incompleto", "Fund. I completo", "Fund. II incompleto", "Fund. completo",
+  "Médio incompleto", "Médio completo", "Superior incompleto", "Superior completo", "Não se aplica", "Ignorado/em branco"];
+
+function perfilFiltrado() {
+  const [tipo, id] = estado.territorio.split(":");
+  const nivel = tipo === "ride" || tipo === "mun" ? "mun" : "uf";
+  return dados.perfil.filter(p => p.doenca === estado.doenca && p.ano === estado.ano && p.nivel === nivel &&
+    (tipo === "mun" ? p.territorio === id : tipo === "uf" ? p.territorio === id : true));
+}
+function somar(linhas, variavel) {
+  return d3.rollups(linhas.filter(p => p.variavel === variavel), v => d3.sum(v, p => p.n), p => p.categoria)
+    .map(([categoria, n]) => ({ categoria, n }));
+}
+
+function barrasProporcao(id, itens, ordem, cor) {
+  const total = d3.sum(itens, d => d.n);
+  if (!total) return vazio(id, "Sem dados.");
+  const dadosB = itens.map(d => ({ ...d, p: d.n / total }));
+  const dominio = ordem ? ordem.filter(c => dadosB.some(d => d.categoria === c))
+    .concat(dadosB.map(d => d.categoria).filter(c => !ordem.includes(c)))
+    : dadosB.slice().sort((a, b) => b.n - a.n).map(d => d.categoria);
+  const w = largura(id);
+  colocar(id, Plot.plot({
+    width: w, height: 34 + dominio.length * 28, marginLeft: 150, marginRight: 70,
+    x: { axis: null, domain: [0, d3.max(dadosB, d => d.p) * 1.05] },
+    y: { domain: dominio, label: null },
+    marks: [
+      Plot.barX(dadosB, { y: "categoria", x: "p", fill: d => (d.categoria.startsWith("Ignorado") ? "#C9D2DE" : cor) }),
+      Plot.text(dadosB, { y: "categoria", x: "p", text: d => `${fmt1.format(d.p * 100)}% (${fmtInt.format(d.n)})`,
+        dx: 6, textAnchor: "start", fill: COR.cinzaEsc, fontSize: 11 }),
+      Plot.tip(dadosB, Plot.pointerY({ y: "categoria", x: "p",
+        title: d => `${d.categoria}\n${fmtInt.format(d.n)} casos (${fmt1.format(d.p * 100)}%)` }))
+    ]
+  }));
+}
+
+function desenharPerfil() {
+  const linhas = perfilFiltrado();
+  const terr = nomeTerritorio(estado.territorio);
+  document.getElementById("titulo-perfil").textContent =
+    `Perfil dos casos prováveis — ${NOME_DOENCA[estado.doenca]}, ${terr}, ${estado.ano}`;
+  const nota = document.getElementById("nota-perfil");
+  const ids = ["piramide", "gravidade", "raca", "escolaridade"];
+
+  if (!dados.perfil.length || !linhas.length) {
+    nota.textContent = "";
+    const anos = [...new Set(dados.perfil.filter(p => p.doenca === estado.doenca).map(p => p.ano))].sort();
+    const msg = !dados.perfil.length
+      ? "Os dados do SINAN/DATASUS ainda estão sendo processados. Eles aparecem aqui assim que a rotina terminar."
+      : `Sem dados do SINAN/DATASUS para ${estado.ano} neste filtro` +
+        (anos.length ? ` (disponível: ${anos.join(", ")}). O DATASUS publica os arquivos com atraso.` : ".");
+    ids.forEach(id => vazio(id, msg));
+    return;
+  }
+
+  const total = d3.sum(somar(linhas, "semana"), d => d.n);
+  nota.textContent = `Fonte: SINAN/DATASUS. ${fmtInt.format(total)} casos prováveis (notificados menos descartados), por residência e ano de início dos sintomas.`;
+
+  // pirâmide etária
+  const sf = somar(linhas, "sexo_faixa").map(d => {
+    const [sexo, faixa] = d.categoria.split("|");
+    return { sexo, faixa, n: d.n };
+  }).filter(d => (d.sexo === "Masculino" || d.sexo === "Feminino") && ORDEM_FAIXA.includes(d.faixa));
+  if (sf.length) {
+    const w = largura("piramide");
+    const max = d3.max(sf, d => d.n);
+    colocar("piramide", Plot.plot({
+      width: w, height: 380, marginLeft: 50,
+      x: { label: "Casos prováveis", domain: [-max * 1.1, max * 1.1], tickFormat: d => fmtInt.format(Math.abs(d)), grid: true },
+      y: { domain: ORDEM_FAIXA.slice().reverse(), label: "Faixa etária (anos)" },
+      color: { domain: ["Masculino", "Feminino"], range: [COR.azul, COR.amareloArc], legend: true },
+      marks: [
+        Plot.barX(sf, { y: "faixa", x: d => (d.sexo === "Masculino" ? -d.n : d.n), fill: "sexo" }),
+        Plot.ruleX([0], { stroke: COR.cinzaEsc }),
+        Plot.tip(sf, Plot.pointer({ y: "faixa", x: d => (d.sexo === "Masculino" ? -d.n : d.n),
+          title: d => `${d.sexo}, ${d.faixa} anos\n${fmtInt.format(d.n)} casos` }))
+      ]
+    }));
+  } else vazio("piramide", "Sem dados de sexo e idade.");
+
+  // gravidade
+  const classif = somar(linhas, "classificacao");
+  const hosp = new Map(somar(linhas, "hospitalizacao").map(d => [d.categoria, d.n]));
+  const evol = new Map(somar(linhas, "evolucao").map(d => [d.categoria, d.n]));
+  const hospSim = hosp.get("Sim") || 0, hospNao = hosp.get("Não") || 0;
+  const obitos = evol.get("Óbito pelo agravo") || 0;
+  const emInvest = evol.get("Óbito em investigação") || 0;
+  const el = document.getElementById("gravidade");
+  el.innerHTML = `<div class="mini-stats">
+      <div><strong>${hospSim + hospNao ? fmt1.format(hospSim / (hospSim + hospNao) * 100) + "%" : "—"}</strong>hospitalizados<br>(entre os com informação)</div>
+      <div><strong>${fmtInt.format(obitos)}</strong>óbitos pelo agravo</div>
+      <div><strong>${fmtInt.format(emInvest)}</strong>óbitos em investigação</div>
+      <div><strong>${total ? fmt1.format(obitos / total * 100).replace(",0", "") + "%" : "—"}</strong>letalidade<br>(óbitos ÷ casos prováveis)</div>
+    </div><div id="gravidade-barras"></div>`;
+  const ordemClass = ["Dengue", "Dengue com sinais de alarme", "Dengue grave", "Chikungunya", "Confirmado", "Inconclusivo", "Em investigação"];
+  barrasProporcao("gravidade-barras", classif, ordemClass, COR.laranja);
+
+  barrasProporcao("raca", somar(linhas, "raca"), null, COR.azul);
+  barrasProporcao("escolaridade", somar(linhas, "escolaridade"), ORDEM_ESCOL, COR.azulClaro);
+}
+
+// ---------------------------------------------------------------------------
+// Baixar cada painel como PNG
+// ---------------------------------------------------------------------------
+function prepararDownloads() {
+  document.querySelectorAll(".painel").forEach(painel => {
+    if (painel.querySelector(".baixar")) return;
+    const h2 = painel.querySelector("h2");
+    const topo = document.createElement("div");
+    topo.className = "painel-topo";
+    h2.replaceWith(topo);
+    topo.append(h2);
+    const botao = document.createElement("button");
+    botao.className = "baixar";
+    botao.type = "button";
+    botao.textContent = "Baixar PNG";
+    botao.title = "Baixar este gráfico como imagem";
+    botao.addEventListener("click", async () => {
+      botao.disabled = true;
+      try {
+        const url = await htmlToImage.toPng(painel, {
+          backgroundColor: "#ffffff", pixelRatio: 2,
+          filter: n => !(n.classList && (n.classList.contains("baixar") || n.getAttribute?.("aria-label") === "tip"))
+        });
+        const a = document.createElement("a");
+        const nome = h2.textContent.normalize("NFD").replace(/[̀-ͯ]/g, "")
+          .replace(/[^\w]+/g, "_").replace(/^_|_$/g, "").toLowerCase();
+        a.href = url;
+        a.download = `${nome}_${estado.doenca}_${estado.ano}.png`;
+        a.click();
+      } catch (e) {
+        alert("Não foi possível gerar a imagem neste navegador.");
+      } finally {
+        botao.disabled = false;
+      }
+    });
+    topo.append(botao);
+  });
 }
 
 iniciar();

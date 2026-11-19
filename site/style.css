@@ -172,3 +172,27 @@ main { padding-top: 22px; padding-bottom: 40px; }
   h1 { font-size: 22px; }
   select { min-width: 160px; }
 }
+
+.painel-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.baixar {
+  flex: none;
+  border: 1px solid var(--borda);
+  background: #fff;
+  color: var(--azul);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.baixar:hover { border-color: var(--azul); }
+.baixar:disabled { opacity: .5; cursor: wait; }
+.secao { color: var(--azul); font-size: 20px; margin: 30px 0 2px; }
+.secao-nota { margin-bottom: 14px; }
+.legenda-curva { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--cinza-esc); margin: 4px 0 6px; }
+.legenda-curva span { display: inline-flex; align-items: center; gap: 6px; }
+.legenda-curva i { display: inline-block; width: 14px; height: 12px; border-radius: 2px; }
+.mini-stats { display: flex; flex-wrap: wrap; gap: 10px 22px; margin: 2px 0 10px; }
+.mini-stats div { font-size: 13px; color: var(--cinza-txt); }
+.mini-stats strong { display: block; font-size: 20px; color: var(--azul-escuro); }
