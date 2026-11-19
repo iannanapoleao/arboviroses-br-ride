@@ -35,6 +35,17 @@
         <label class="rotulo" for="filtro-ano">Ano</label>
         <select id="filtro-ano"></select>
       </div>
+      <div class="grupo">
+        <span class="rotulo">Semanas epidemiológicas</span>
+        <div class="intervalo-se">
+          <label class="sr" for="filtro-se-ini">SE inicial</label>
+          <select id="filtro-se-ini" class="se"></select>
+          <span>a</span>
+          <label class="sr" for="filtro-se-fim">SE final</label>
+          <select id="filtro-se-fim" class="se"></select>
+          <button type="button" id="se-todas" class="link">ano todo</button>
+        </div>
+      </div>
     </div>
   </nav>
 
@@ -44,12 +55,12 @@
     <section class="linha">
       <article class="painel">
         <h2>Incidência acumulada — RIDE-DF</h2>
-        <p class="nota">Casos notificados por 100 mil habitantes no ano. Clique num município para filtrar.</p>
+        <p class="nota nota-periodo-mapa">Casos notificados por 100 mil habitantes no período. Clique num município para filtrar.</p>
         <div id="mapa-ride" class="grafico"></div>
       </article>
       <article class="painel">
         <h2>Incidência acumulada — Brasil por UF</h2>
-        <p class="nota">Casos notificados por 100 mil habitantes no ano. Clique numa UF para filtrar.</p>
+        <p class="nota nota-periodo-mapa">Casos notificados por 100 mil habitantes no período. Clique numa UF para filtrar.</p>
         <div id="mapa-brasil" class="grafico"></div>
       </article>
     </section>

@@ -29,7 +29,11 @@ const fmt1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumF
 const fmtPct = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0, signDisplay: "exceptZero" });
 const fmtData = d => d ? d.toLocaleDateString("pt-BR", { timeZone: "UTC" }) : "";
 
-const estado = { doenca: "dengue", territorio: "ride:total", ano: null };
+const estado = { doenca: "dengue", territorio: "ride:total", ano: null, seIni: 1, seFim: 53 };
+const pad2 = n => String(n).padStart(2, "0");
+const noPeriodo = d => d.se >= estado.seIni && d.se <= estado.seFim;
+const temRecorte = () => estado.seIni > 1 || estado.seFim < (estado.seMaxAno || 52);
+const textoPeriodo = () => `SE ${pad2(estado.seIni)} a ${pad2(estado.seFim)}/${estado.ano}`;
 const dados = { ride: [], brasil: [], perfil: [], geoRide: null, geoUf: null, municipios: new Map() };
 
 // ---------------------------------------------------------------------------
@@ -151,6 +155,7 @@ function montarFiltros() {
         x.setAttribute("aria-checked", x === b);
       });
       atualizarAnos();
+      atualizarSemanas(true);
       desenhar();
     });
   });
@@ -175,9 +180,36 @@ function montarFiltros() {
   sel.addEventListener("change", () => { estado.territorio = sel.value; desenhar(); });
 
   document.getElementById("filtro-ano").addEventListener("change", e => {
-    estado.ano = +e.target.value; desenhar();
+    estado.ano = +e.target.value; atualizarSemanas(true); desenhar();
   });
+  const ini = document.getElementById("filtro-se-ini"), fim = document.getElementById("filtro-se-fim");
+  ini.addEventListener("change", () => {
+    estado.seIni = +ini.value;
+    if (estado.seFim < estado.seIni) estado.seFim = estado.seIni;
+    atualizarSemanas(false); desenhar();
+  });
+  fim.addEventListener("change", () => {
+    estado.seFim = +fim.value;
+    if (estado.seIni > estado.seFim) estado.seIni = estado.seFim;
+    atualizarSemanas(false); desenhar();
+  });
+  document.getElementById("se-todas").addEventListener("click", () => { atualizarSemanas(true); desenhar(); });
   atualizarAnos();
+  atualizarSemanas(true);
+}
+
+// Semanas disponíveis no ano escolhido (para a doença escolhida)
+function atualizarSemanas(reiniciar) {
+  const seMax = d3.max(dados.ride.concat(dados.brasil)
+    .filter(d => d.doenca === estado.doenca && d.ano === estado.ano), d => d.se) || 52;
+  estado.seMaxAno = seMax;
+  if (reiniciar) { estado.seIni = 1; estado.seFim = seMax; }
+  estado.seFim = Math.min(estado.seFim, seMax);
+  estado.seIni = Math.min(estado.seIni, estado.seFim);
+  const opcoes = d3.range(1, seMax + 1).map(se => `<option value="${se}">${pad2(se)}</option>`).join("");
+  const ini = document.getElementById("filtro-se-ini"), fim = document.getElementById("filtro-se-fim");
+  ini.innerHTML = opcoes; fim.innerHTML = opcoes;
+  ini.value = estado.seIni; fim.value = estado.seFim;
 }
 
 function atualizarAnos() {
@@ -289,7 +321,7 @@ function desenhar() {
 
 function desenharCards(serie) {
   const ano = estado.ano;
-  const atual = serie.filter(d => d.ano === ano);
+  const atual = serie.filter(d => d.ano === ano && noPeriodo(d));
   const el = document.getElementById("cards");
   const doenca = NOME_DOENCA[estado.doenca];
   const terr = nomeTerritorio(estado.territorio);
@@ -305,11 +337,12 @@ function desenharCards(serie) {
   const popFim = atual.find(d => d.se === seMax)?.pop || d3.max(atual, d => d.pop);
   const inc = popFim > 0 ? casos / popFim * 1e5 : NaN;
 
-  const anterior = serie.filter(d => d.ano === ano - 1 && d.se <= seMax);
+  const seIni = d3.min(atual, d => d.se);
+  const anterior = serie.filter(d => d.ano === ano - 1 && d.se >= seIni && d.se <= seMax);
   const casosAnt = d3.sum(anterior, d => d.casos);
   const variacao = anterior.length && casosAnt > 0 ? (casos / casosAnt - 1) * 100 : null;
 
-  const ult4 = atual.filter(d => d.se > seMax - 4);
+  const ult4 = atual.filter(d => d.se > seMax - 4);  // dentro do período
   const casos4 = d3.sum(ult4, d => d.casos);
   const canal = canalEndemico(serie, ano);
   const pUlt = canal.pontos.find(p => p.se === Math.min(seMax, 52));
@@ -317,25 +350,25 @@ function desenharCards(serie) {
   const zona = zonaDe(incUlt, pUlt);
 
   const varTxt = variacao === null ? "sem dado do ano anterior"
-    : `<span class="${variacao > 0 ? "sobe" : "desce"}">${variacao > 0 ? "aumento" : "redução"}</span> em relação às SE 01–${String(seMax).padStart(2, "0")} de ${ano - 1} (${fmtInt.format(casosAnt)} casos)`;
+    : `<span class="${variacao > 0 ? "sobe" : "desce"}">${variacao > 0 ? "aumento" : "redução"}</span> em relação às SE ${pad2(seIni)}–${pad2(seMax)} de ${ano - 1} (${fmtInt.format(casosAnt)} casos)`;
 
   el.innerHTML = `
     <div class="card"><div class="titulo">Casos notificados · ${doenca} · ${terr}</div>
       <div class="valor">${fmtInt.format(casos)}</div>
-      <div class="detalhe">SE 01 a ${String(seMax).padStart(2, "0")}/${ano}</div></div>
+      <div class="detalhe">SE ${pad2(seIni)} a ${pad2(seMax)}/${ano}</div></div>
     <div class="card claro"><div class="titulo">Incidência acumulada</div>
       <div class="valor">${Number.isFinite(inc) ? fmt1.format(inc) : "—"}</div>
-      <div class="detalhe">casos por 100 mil habitantes</div></div>
+      <div class="detalhe">casos por 100 mil habitantes no período</div></div>
     <div class="card amarelo"><div class="titulo">Comparação com ${ano - 1}</div>
       <div class="valor">${variacao === null ? "—" : fmtPct.format(variacao) + "%"}</div>
       <div class="detalhe">${varTxt}</div></div>
-    <div class="card laranja"><div class="titulo">Últimas 4 semanas</div>
+    <div class="card laranja"><div class="titulo">Últimas 4 semanas do período</div>
       <div class="valor">${fmtInt.format(casos4)}</div>
       <div class="detalhe">${zona ? `SE ${seMax} na zona <strong>${zona.nome.toLowerCase()}</strong> do canal endêmico` : "casos notificados (dados preliminares)"}</div></div>`;
 }
 
 function acumuladoPor(linhas, chave, ano) {
-  const doAno = linhas.filter(d => d.ano === ano);
+  const doAno = linhas.filter(d => d.ano === ano && noPeriodo(d));
   return new Map(d3.rollups(doAno, v => {
     const seMax = d3.max(v, d => d.se);
     const casos = d3.sum(v, d => d.casos || 0);
@@ -459,7 +492,9 @@ function desenharCurva(serie) {
   const fimEixo = ano === anoMaisRecente ? seMax : Math.max(52, seMax);
   const usaSinan = pts.some(d => d.sinan);
 
+  const recorte = temRecorte();
   nota.innerHTML = `${NOME_DOENCA[estado.doenca]}, ${ano}: casos por semana epidemiológica de início dos sintomas` +
+    (recorte ? ` — período em destaque: ${textoPeriodo()}` : "") +
     (usaSinan ? " (casos prováveis do SINAN/DATASUS)." : " (casos notificados, InfoDengue).") +
     `<span class="legenda-curva"><span><i style="background:${COR.azul}"></i>Notificados</span>` +
     (pts.some(d => d.prelim) ? `<span><i style="background:${COR.azulCeu}"></i>Últimas semanas (preliminares)</span>` : "") +
@@ -475,8 +510,9 @@ function desenharCurva(serie) {
     y: { label: "Casos", grid: true, tickFormat: d => fmtInt.format(d) },
     color: { domain: ["Notificados", "Preliminares"], range: [COR.azul, COR.azulCeu] },
     marks: [
-      Plot.barY(nowcast, { x: "se", y: "est", fill: "#FFF6E0", stroke: COR.laranja, strokeDasharray: "4,3", strokeWidth: 1.4 }),
-      Plot.barY(pts, { x: "se", y: "casos", fill: "grupo" }),
+      Plot.barY(nowcast, { x: "se", y: "est", fill: "#FFF6E0", stroke: COR.laranja, strokeDasharray: "4,3", strokeWidth: 1.4,
+        strokeOpacity: d => (noPeriodo(d) ? 1 : 0.3), fillOpacity: d => (noPeriodo(d) ? 1 : 0.3) }),
+      Plot.barY(pts, { x: "se", y: "casos", fill: "grupo", fillOpacity: d => (noPeriodo(d) ? 1 : 0.22) }),
       Plot.ruleY([0], { stroke: "#9aa5b4" }),
       Plot.tip(pts, Plot.pointerX({
         x: "se", y: d => Math.max(d.casos, Number.isFinite(d.est) ? d.est : 0),
@@ -505,7 +541,9 @@ function desenharCanal(serie) {
     return vazio("canal", msg);
   }
 
-  nota.textContent = `Incidência semanal por 100 mil hab. Base: ${canal.anosBase.join(", ")}` +
+  nota.textContent = `Incidência semanal por 100 mil hab.` +
+    (temRecorte() ? ` Período em destaque: ${textoPeriodo()}.` : "") +
+    ` Base: ${canal.anosBase.join(", ")}` +
     (canal.excluidos.length ? ` (excluídos ${canal.excluidos.join(" e ")}, de maior incidência).` : ".");
 
   const ymax = Math.max(d3.max(canal.pontos, p => p.q3) || 0, d3.max(atual, d => d.inc) || 0) * 1.15 || 1;
@@ -527,6 +565,12 @@ function desenharCanal(serie) {
       Plot.lineY(canal.pontos, { x: "se", y: "med", stroke: "#C9A21A", strokeDasharray: "3,3", strokeWidth: 1, curve: "monotone-x" }),
       Plot.lineY(atual, { x: "se", y: "inc", stroke: COR.azulEscuro, strokeWidth: 2.6, curve: "monotone-x" }),
       Plot.dot(atual, { x: "se", y: "inc", fill: COR.azulEscuro, r: 2.2 }),
+      // semanas fora do período ficam esmaecidas
+      Plot.rect(
+        [[0.5, estado.seIni - 0.5], [estado.seFim + 0.5, 52.5]].filter(([a, b]) => b > a)
+          .map(([a, b]) => ({ x1: Math.max(1, a), x2: Math.min(52, b) })),
+        { x1: "x1", x2: "x2", y1: 0, y2: ymax, fill: "#ffffff", fillOpacity: 0.65 }
+      ),
       Plot.tip(atual, Plot.pointerX({
         x: "se", y: "inc",
         title: d => {
@@ -602,7 +646,8 @@ function desenharPerfil() {
   }
 
   const total = d3.sum(somar(linhas, "semana"), d => d.n);
-  nota.textContent = `Fonte: SINAN/DATASUS. ${fmtInt.format(total)} casos prováveis (notificados menos descartados), por residência e ano de início dos sintomas.`;
+  nota.textContent = `Fonte: SINAN/DATASUS. ${fmtInt.format(total)} casos prováveis (notificados menos descartados), por residência e ano de início dos sintomas.` +
+    (temRecorte() ? " O perfil considera o ano inteiro: o filtro de semanas não se aplica a esta seção." : "");
 
   // pirâmide etária
   const sf = somar(linhas, "sexo_faixa").map(d => {

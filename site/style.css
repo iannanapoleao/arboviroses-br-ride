@@ -200,3 +200,8 @@ main { padding-top: 22px; padding-bottom: 40px; }
 .mapa-caixa { position: relative; }
 .grafico svg.rosa-ventos { position: absolute; top: 4px; right: 6px; width: 48px !important; height: 58px !important; max-width: none; }
 .mapa-legenda { display: block; margin: 4px auto 0; }
+
+.intervalo-se { display: flex; align-items: center; gap: 8px; color: var(--cinza-txt); }
+select.se { min-width: 84px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+button.link { border: 0; background: none; color: var(--azul); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; padding: 0 2px; }
