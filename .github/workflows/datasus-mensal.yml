@@ -10,6 +10,10 @@ on:
         description: "Anos separados por vírgula (vazio = ano anterior e atual)"
         required: false
         default: ""
+      doencas:
+        description: "Doenças separadas por vírgula (vazio = zika,chikungunya,dengue)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -46,6 +50,7 @@ jobs:
       - name: Baixar e resumir SINAN
         env:
           ANOS_DATASUS: ${{ inputs.anos }}
+          DOENCAS_DATASUS: ${{ inputs.doencas }}
         run: Rscript scripts/03_atualizar_datasus.R
 
       - name: Salvar no repositório
