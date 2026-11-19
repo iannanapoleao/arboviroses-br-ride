@@ -19,7 +19,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: atualizar-dados
+  group: datasus
   cancel-in-progress: false
 
 env:

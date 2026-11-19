@@ -15,7 +15,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: atualizar-dados
+  group: ride
   cancel-in-progress: false
 
 env:

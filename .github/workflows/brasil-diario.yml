@@ -21,7 +21,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: atualizar-dados
+  group: brasil
   cancel-in-progress: false
 
 env:
