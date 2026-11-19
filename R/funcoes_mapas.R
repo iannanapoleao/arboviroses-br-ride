@@ -21,7 +21,10 @@ theme_nvepi_mapa <- function(base_size = 13) {
       legend.title  = element_text(colour = NVEPI[["cinza_esc"]], face = "bold",
                                    size = rel(0.82)),
       legend.text   = element_text(colour = NVEPI[["cinza_txt"]], size = rel(0.78)),
-      legend.position  = "right",
+      legend.position  = "bottom",
+      legend.key.width = grid::unit(2.2, "cm"),
+      legend.key.height = grid::unit(0.35, "cm"),
+      legend.title.position = "top",
       plot.background  = element_rect(fill = "white", colour = NA),
       plot.margin      = margin(15, 15, 15, 15)
     )
@@ -90,6 +93,16 @@ mapa_incidencia <- function(malha_sf, titulo, subtitulo, legenda_fonte,
   p <- ggplot(malha_sf) +
     geom_sf(aes(fill = inc_100k), colour = "white", linewidth = 0.3) +
     escala_incidencia(paleta) +
+    ggspatial::annotation_north_arrow(
+      location = "tr", which_north = "true",
+      height = grid::unit(1.3, "cm"), width = grid::unit(1.1, "cm"),
+      style = ggspatial::north_arrow_fancy_orienteering(
+        fill = c(NVEPI[["azul"]], "white"), line_col = NVEPI[["cinza_esc"]],
+        text_col = NVEPI[["cinza_esc"]])
+    ) +
+    ggspatial::annotation_scale(location = "bl", width_hint = 0.25,
+                                bar_cols = c(NVEPI[["cinza_esc"]], "white"),
+                                text_col = NVEPI[["cinza_esc"]]) +
     labs(title = titulo, subtitle = subtitulo, caption = legenda_fonte) +
     theme_nvepi_mapa()
 

@@ -347,7 +347,7 @@ function acumuladoPor(linhas, chave, ano) {
 // Faixas: zero na cor mais clara; positivos divididos pelos quartis
 function escalaMapa(incs) {
   const pos = incs.filter(v => v > 0).sort(d3.ascending);
-  const base = { legend: true, label: "Incidência (por 100 mil hab.)", unknown: "#EEF1F5" };
+  const base = { legend: false, label: "Incidência (por 100 mil hab.)", unknown: "#EEF1F5" };
   if (!pos.length) return { ...base, type: "threshold", domain: [1e-9], range: [PAL_MAPA[0], PAL_MAPA[1]], tickFormat: () => "0" };
   const cortes = [...new Set([0.25, 0.5, 0.75].map(q => +d3.quantileSorted(pos, q).toPrecision(2)))]
     .filter(v => v > 0);
@@ -364,7 +364,12 @@ function mapa(id, geo, valores, chave, nomeDe, idSelecionado, aoClicar) {
   const w = largura(id);
   const feats = geo.features.map(f => ({ ...f, v: valores.get(f.properties[chave]) }));
   const incs = feats.map(f => f.v?.inc).filter(Number.isFinite);
-  if (!incs.length) return vazio(id, "Sem casos registrados para este filtro.");
+  if (!incs.length) {
+    const temCasos = feats.some(f => f.v && f.v.casos > 0);
+    return vazio(id, temCasos
+      ? "Há casos, mas ainda falta a população do InfoDengue para calcular a incidência deste recorte."
+      : "Sem casos registrados para este filtro.");
+  }
 
   const plot = Plot.plot({
     width: w,
@@ -384,8 +389,29 @@ function mapa(id, geo, valores, chave, nomeDe, idSelecionado, aoClicar) {
   });
   plot.style.cursor = "pointer";
   plot.addEventListener("click", () => { if (plot.value) aoClicar(plot.value); });
-  colocar(id, plot);
+
+  // mapa + rosa dos ventos + legenda embaixo
+  const caixa = document.createElement("div");
+  caixa.className = "mapa-caixa";
+  caixa.append(plot);
+  caixa.insertAdjacentHTML("beforeend", ROSA_DOS_VENTOS);
+  const legenda = Plot.legend({ color: plot.scale("color"), label: "Incidência (por 100 mil hab.)",
+    tickFormat: d => (d < 1e-6 ? "0" : fmtInt.format(d)), width: Math.min(360, w - 20) });
+  legenda.classList.add("mapa-legenda");
+  caixa.append(legenda);
+  colocar(id, caixa);
 }
+
+const ROSA_DOS_VENTOS = `<svg class="rosa-ventos" width="48" height="58" viewBox="0 0 60 72" aria-label="Rosa dos ventos, norte para cima" role="img">
+  <text x="30" y="11" text-anchor="middle" font-size="12" font-weight="700" fill="#34495E" font-family="system-ui, sans-serif">N</text>
+  <g transform="translate(30,42)">
+    <polygon points="0,-28 6,-6 0,0" fill="#245EB6"/><polygon points="0,-28 -6,-6 0,0" fill="#004AAD"/>
+    <polygon points="0,28 6,6 0,0" fill="#DCE3EC"/><polygon points="0,28 -6,6 0,0" fill="#B7C3D2"/>
+    <polygon points="28,0 6,6 0,0" fill="#DCE3EC"/><polygon points="28,0 6,-6 0,0" fill="#B7C3D2"/>
+    <polygon points="-28,0 -6,6 0,0" fill="#B7C3D2"/><polygon points="-28,0 -6,-6 0,0" fill="#DCE3EC"/>
+    <circle r="3" fill="#fff" stroke="#34495E" stroke-width="1.2"/>
+  </g>
+</svg>`;
 
 function desenharMapaRide() {
   if (!dados.geoRide || !dados.ride.length) return vazio("mapa-ride", "Malha ou dados da RIDE-DF ainda não publicados.");

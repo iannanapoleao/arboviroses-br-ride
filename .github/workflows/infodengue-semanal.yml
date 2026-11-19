@@ -46,6 +46,7 @@ jobs:
             any::ggplot2
             any::scales
             any::geobr
+            any::ggspatial
 
       - name: RIDE-DF (InfoDengue)
         env:
