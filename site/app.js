@@ -107,7 +107,7 @@ function rebobinar(fc) {
 async function iniciar() {
   const [ride, brasil, perfil, geoRide, geoUf] = await Promise.all([
     csvOuVazio("dados/infodengue_ride_semanal.csv"),
-    csvOuVazio("dados/infodengue_uf_semanal.csv"),
+    Promise.all(["dengue", "chikungunya", "zika"].map(d => csvOuVazio(`dados/infodengue_uf_${d}.csv`))).then(x => x.flat()),
     csvOuVazio("dados/sinan_perfil.csv", parsePerfil),
     jsonOuNulo("dados/ride.geojson"),
     jsonOuNulo("dados/ufs.geojson")
@@ -399,7 +399,7 @@ function desenharMapaRide() {
 
 function desenharMapaBrasil() {
   if (!dados.brasil.length) {
-    return vazio("mapa-brasil", "Os dados do Brasil por UF ainda estão em carga (a API do Mosqlimate limita as chamadas). Eles aparecem aqui assim que a primeira carga terminar.");
+    return vazio("mapa-brasil", "Os dados do Brasil por UF ainda estão em carga. Eles aparecem aqui assim que a primeira carga terminar.");
   }
   if (!dados.geoUf) return vazio("mapa-brasil", "Malha das UFs ainda não publicada.");
   const linhas = dados.brasil.filter(d => d.doenca === estado.doenca);

@@ -4,7 +4,7 @@ on:
   workflow_run:
     workflows:
       - "InfoDengue semanal (RIDE-DF)"
-      - "InfoDengue Brasil por UF (Mosqlimate, retomável)"
+      - "InfoDengue Brasil por UF (semanal)"
       - "DATASUS/SINAN mensal"
     types: [completed]
   push:
@@ -37,7 +37,7 @@ jobs:
           mkdir -p _site/dados
           cp -r site/* _site/
           cp data/ride/infodengue_ride_semanal.csv _site/dados/ 2>/dev/null || true
-          cp data/brasil/infodengue_uf_semanal.csv _site/dados/ 2>/dev/null || true
+          cp data/brasil/infodengue_uf_*.csv _site/dados/ 2>/dev/null || true
           cp data/ref/*.geojson _site/dados/ 2>/dev/null || true
           cp data/datasus/sinan_perfil.csv _site/dados/ 2>/dev/null || true
           ls -la _site _site/dados

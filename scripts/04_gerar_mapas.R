@@ -66,10 +66,10 @@ if (file.exists(arq_ride)) {
 # -----------------------------------------------------------------------------
 # Brasil por UF
 # -----------------------------------------------------------------------------
-arq_br <- "data/brasil/infodengue_uf_semanal.csv"
-if (file.exists(arq_br)) {
+arqs_br <- Sys.glob("data/brasil/infodengue_uf_*.csv")
+if (length(arqs_br) > 0) {
   malha <- malha_ufs()
-  acum <- acumular(ler(arq_br), "uf", ano_mapa)
+  acum <- acumular(bind_rows(lapply(arqs_br, ler)), "uf", ano_mapa)
 
   for (d in names(DOENCAS)) {
     dd <- filter(acum, doenca == d)
@@ -84,5 +84,5 @@ if (file.exists(arq_br)) {
     salvar_slide(p, sprintf("figuras/brasil_incidencia_%s_%d.png", d, ano_mapa))
   }
 } else {
-  message("Sem dados do Brasil ainda (rode scripts/02 com a chave do Mosqlimate).")
+  message("Sem dados do Brasil ainda (rode scripts/02).")
 }

@@ -11,7 +11,7 @@ suppressPackageStartupMessages({
 # -----------------------------------------------------------------------------
 # Doenças
 # -----------------------------------------------------------------------------
-# Nome usado nas APIs do InfoDengue/Mosqlimate -> rótulo para tabelas e mapas
+# Nome usado nas APIs do InfoDengue -> rótulo para tabelas e mapas
 DOENCAS <- c(
   dengue      = "Dengue",
   chikungunya = "Chikungunya",

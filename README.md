@@ -1,44 +1,50 @@
 # arboviroses-br-ride
 
-Coleta automática, em R, dos dados de **dengue, chikungunya e Zika** para o **Brasil (por UF)** e a **RIDE-DF** (Distrito Federal + 33 municípios de GO e MG), com mapas nas cores do NVEPI Leste.
+Coleta automática, em R, dos dados de **dengue, chikungunya e Zika** para o **Brasil (por UF)** e a **RIDE-DF** (Distrito Federal + 33 municípios de GO e MG), com um painel publicado no GitHub Pages.
 
-Os dados são atualizados sozinhos pelo GitHub Actions e ficam na pasta `data/`.
+**Painel:** <https://iannanapoleao.github.io/arboviroses-br-ride/>
 
-## O que roda e quando
+## Fontes
 
-| Rotina | Fonte | Recorte | Frequência | Arquivo gerado |
+- **InfoDengue** (Fiocruz/FGV), API pública, sem chave: casos **notificados** por semana, nowcasting, população, nível de alerta e Rt. Usado para a RIDE-DF (por município) e para o Brasil (soma dos 5.570 municípios por UF).
+- **DATASUS/SINAN** (pacote `microdatasus`): casos **prováveis** (notificados menos descartados) com perfil sociodemográfico e de gravidade. Publicado com atraso.
+
+## Rotinas (GitHub Actions)
+
+| Rotina | Script | Recorte | Quando | Saída |
 |---|---|---|---|---|
-| `scripts/01_atualizar_infodengue_ride.R` | InfoDengue (API pública) | RIDE-DF por município e semana | Semanal (terça) | `data/ride/infodengue_ride_semanal.csv` |
-| `scripts/02_atualizar_infodengue_brasil.R` | InfoDengue via Mosqlimate (precisa de chave) | Brasil por UF e semana | Semanal (terça) | `data/brasil/infodengue_uf_semanal.csv` |
-| `scripts/03_atualizar_datasus.R` | DATASUS/SINAN (microdatasus) | Brasil por UF e RIDE-DF por perfil | Mensal (dia 5) | `data/datasus/sinan_uf_semana.csv` e `data/datasus/sinan_ride_perfil.csv` |
-| `scripts/04_gerar_mapas.R` | Dados acima | Incidência acumulada no ano | Junto da semanal | `figuras/*.png` |
+| InfoDengue semanal (RIDE-DF) | `scripts/01_atualizar_infodengue_ride.R` + `04_gerar_mapas.R` | RIDE-DF por município e semana, desde 2016 | Terça, 08:17 | `data/ride/infodengue_ride_semanal.csv`, `figuras/` |
+| InfoDengue Brasil por UF (semanal) | `scripts/02_atualizar_infodengue_brasil.R` | Brasil por UF e semana (uma execução por doença, em paralelo) | Terça, 09:37 | `data/brasil/infodengue_uf_<doenca>.csv` |
+| DATASUS/SINAN mensal | `scripts/03_atualizar_datasus.R` | Perfil dos casos prováveis por UF e por município da RIDE-DF | Dia 5, 09:23 | `data/datasus/sinan_perfil.csv` |
+| Publicar painel | `site/` | — | Ao fim de qualquer rotina acima | GitHub Pages |
 
-## Configuração (uma vez só)
+Todas podem ser rodadas na mão em **Actions → (rotina) → Run workflow**.
 
-1. **Chave do Mosqlimate** (para o recorte Brasil): crie uma conta gratuita em <https://api.mosqlimate.org>, copie sua chave (X-UID-Key) e cadastre no repositório em **Settings → Secrets and variables → Actions → New repository secret**, com o nome `MOSQLIMATE_API_KEY`. Sem a chave, a RIDE-DF continua atualizando normalmente; só o Brasil é pulado.
-2. **Permissão de escrita das Actions**: em **Settings → Actions → General → Workflow permissions**, marque **Read and write permissions**.
-3. **Primeira carga**: em **Actions → InfoDengue semanal → Run workflow**, preencha `ano_inicial` (ex.: `2025`) para baixar o Brasil desde aquele ano. Depois disso, cada execução baixa só as últimas 8 semanas (o InfoDengue revisa as semanas recentes).
+## Usar os dados numa análise avulsa
 
-## Usar no RStudio
+```r
+library(readr)
+base <- "https://raw.githubusercontent.com/iannanapoleao/arboviroses-br-ride/main/data"
 
-Abra `arboviroses-br-ride.Rproj` e rode os scripts da pasta `scripts/` na ordem. Para o recorte Brasil localmente, crie um arquivo `.Renviron` na raiz do projeto (ele não vai para o GitHub) com:
+ride   <- read_csv(file.path(base, "ride/infodengue_ride_semanal.csv"))
+dengue_uf <- read_csv(file.path(base, "brasil/infodengue_uf_dengue.csv"))
+perfil <- read_csv(file.path(base, "datasus/sinan_perfil.csv"))
 
+# paleta e lista da RIDE
+source("https://raw.githubusercontent.com/iannanapoleao/arboviroses-br-ride/main/R/00_config.R")
 ```
-MOSQLIMATE_API_KEY=sua_chave_aqui
-```
 
-Pacotes: `httr2`, `jsonlite`, `dplyr`, `readr`, `tibble`, `lubridate`, `sf`, `ggplot2`, `scales`, `geobr` e, para o DATASUS, `microdatasus` (`remotes::install_github("rfsaldanha/microdatasus")`).
+## Colunas
 
-## Colunas principais
+**InfoDengue** (`data/ride`, `data/brasil`): `doenca`, `ano`, `se`, `data_ini_se`, `casos` (notificados), `casos_est` (nowcasting), `casprov`, `casconf`, `pop`, `p_inc100k`/`inc_100k`, `nivel` (alerta, 1 a 4), `rt`.
 
-**InfoDengue** (`data/ride` e `data/brasil`): `doenca`, `ano`, `se`, `data_ini_se`, `casos` (casos notificados), `casos_est` (estimados por nowcasting), `casprov` (prováveis), `casconf` (confirmados), `pop`, `inc_100k`/`p_inc100k`, `nivel` (alerta 1 verde a 4 vermelho), `rt`.
-
-**DATASUS** (`data/datasus`): contagens (`n`) por UF ou município de residência, semana de primeiros sintomas (`sem_pri`), classificação final (`classi_fin`, código bruto do SINAN), critério, sexo, faixa etária, hospitalização e evolução. Os microdados não são salvos no repositório, só os resumos.
+**DATASUS** (`data/datasus/sinan_perfil.csv`, formato longo): `doenca`, `ano_arquivo`, `ano` (da semana de início dos sintomas), `nivel` (`uf` ou `mun`), `territorio` (sigla da UF ou geocódigo IBGE), `variavel` (`semana`, `sexo_faixa`, `raca`, `escolaridade`, `classificacao`, `hospitalizacao`, `evolucao`), `categoria`, `n`.
 
 ## Observações
 
-- Nas fontes públicas, o **DF entra como um único município** (Brasília, 5300108): não há quebra por Região Administrativa.
-- Os mapas usam **casos notificados** do InfoDengue. Para casos prováveis segundo a definição do Ministério da Saúde, use `casprov` ou o resumo do DATASUS excluindo os descartados.
-- O DATASUS publica os arquivos do SINAN com atraso; se o ano atual ainda não estiver disponível, a rotina mensal só avisa e segue.
-- Para Zika, confira no dicionário de dados do SINAN os códigos de `classi_fin` antes de calcular casos prováveis.
-- Municípios da RIDE-DF conforme a LC 94/1998, com redação da LC 163/2018.
+- Nas fontes públicas, o **DF é um município só** (Brasília, 5300108), sem quebra por Região Administrativa.
+- O InfoDengue tem **Zika** da RIDE-DF só até o início de 2024; depois disso, o painel usa os casos prováveis do SINAN.
+- As semanas mais recentes do InfoDengue são preliminares e sobem nas atualizações seguintes.
+- O FTP do DATASUS cai com frequência; a rotina tenta cada arquivo até 4 vezes.
+- Canal endêmico: mediana, Q1 e Q3 da incidência semanal desde 2016, excluindo os dois anos de maior incidência.
+- RIDE-DF conforme a LC 94/1998, com redação da LC 163/2018.

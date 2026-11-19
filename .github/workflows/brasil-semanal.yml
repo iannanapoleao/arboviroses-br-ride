@@ -1,0 +1,62 @@
+name: InfoDengue Brasil por UF (semanal)
+
+# Mesma API pública do InfoDengue usada na RIDE-DF, sem chave.
+# Uma execução por doença, em paralelo; cada uma baixa os 5.570 municípios
+# e salva a soma por UF (data/brasil/infodengue_uf_<doenca>.csv).
+on:
+  schedule:
+    - cron: "37 12 * * 2"   # terça, 09:37 de Brasília (depois da RIDE)
+  workflow_dispatch:
+    inputs:
+      anos:
+        description: "Anos separados por vírgula (vazio = ano atual, e o anterior se faltar)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: brasil
+  cancel-in-progress: false
+
+env:
+  LANG: C.UTF-8
+  LC_ALL: C.UTF-8
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix:
+        doenca: [dengue, chikungunya, zika]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::httr2
+            any::jsonlite
+            any::dplyr
+            any::readr
+            any::tibble
+            any::lubridate
+
+      - name: Brasil por UF — ${{ matrix.doenca }}
+        continue-on-error: true
+        timeout-minutes: 320
+        env:
+          DOENCA_BR: ${{ matrix.doenca }}
+          ANOS_BR: ${{ inputs.anos }}
+        run: Rscript scripts/02_atualizar_infodengue_brasil.R
+
+      - name: Salvar
+        if: always()
+        run: scripts/salvar_git.sh "Atualiza InfoDengue Brasil por UF (${{ matrix.doenca }})"
