@@ -205,3 +205,13 @@ main { padding-top: 22px; padding-bottom: 40px; }
 select.se { min-width: 84px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 button.link { border: 0; background: none; color: var(--azul); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; padding: 0 2px; }
+
+.linha-unica { grid-template-columns: 1fr; }
+.tabela-rolagem { overflow-x: auto; }
+table.resumo { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+table.resumo th, table.resumo td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--borda); white-space: nowrap; }
+table.resumo th:first-child, table.resumo td:first-child { text-align: left; }
+table.resumo thead th { font-size: 12px; color: var(--cinza-txt); font-weight: 600; vertical-align: bottom; white-space: normal; }
+table.resumo thead tr.cab-grupo th { color: var(--azul); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--azul-gelo); text-align: center; }
+table.resumo tbody tr.selecionado td { background: #FFF8E1; }
+table.resumo td.destaque { font-weight: 700; color: var(--azul-escuro); }

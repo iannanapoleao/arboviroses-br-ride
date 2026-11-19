@@ -312,6 +312,7 @@ function desenhar() {
   const linhas = linhasTerritorio(estado.territorio, estado.doenca);
   const serie = serieSemanal(linhas);
   desenharCards(serie);
+  desenharResumo();
   desenharMapaRide();
   desenharMapaBrasil();
   desenharCurva(serie);
@@ -584,6 +585,78 @@ function desenharCanal(serie) {
     ]
   });
   colocar("canal", plot);
+}
+
+// ---------------------------------------------------------------------------
+// Tabela-resumo: Brasil, RIDE-DF, DF e o território selecionado
+// ---------------------------------------------------------------------------
+function perfilDe(territorio) {
+  const [tipo, id] = territorio.split(":");
+  const nivel = tipo === "ride" || tipo === "mun" ? "mun" : "uf";
+  return dados.perfil.filter(p => p.doenca === estado.doenca && p.ano === estado.ano && p.nivel === nivel &&
+    (tipo === "mun" ? p.territorio === id : tipo === "uf" ? p.territorio === id : true));
+}
+
+function linhaResumo(territorio) {
+  const serie = serieSemanal(linhasTerritorio(territorio, estado.doenca))
+    .filter(d => d.ano === estado.ano && noPeriodo(d) && !d.sinan);
+  const casos = serie.length ? d3.sum(serie, d => d.casos) : NaN;
+  const seMax = d3.max(serie, d => d.se);
+  const pop = serie.find(d => d.se === seMax)?.pop;
+  const p = perfilDe(territorio);
+  const soma = (variavel, cat) => d3.sum(p.filter(x => x.variavel === variavel && (cat === undefined || x.categoria === cat)), x => x.n);
+  const provaveis = p.length ? soma("semana") : NaN;
+  const hospSim = soma("hospitalizacao", "Sim"), hospNao = soma("hospitalizacao", "Não");
+  const obitos = p.length ? soma("evolucao", "Óbito pelo agravo") : NaN;
+  return {
+    territorio, nome: nomeTerritorio(territorio),
+    casos, inc: pop > 0 ? casos / pop * 1e5 : NaN,
+    provaveis,
+    alarme: estado.doenca === "dengue" && p.length ? soma("classificacao", "Dengue com sinais de alarme") : NaN,
+    grave: estado.doenca === "dengue" && p.length ? soma("classificacao", "Dengue grave") : NaN,
+    hosp: p.length ? hospSim : NaN,
+    hospPct: hospSim + hospNao > 0 ? hospSim / (hospSim + hospNao) * 100 : NaN,
+    obitos,
+    investig: p.length ? soma("evolucao", "Óbito em investigação") : NaN,
+    letal: provaveis > 0 ? obitos / provaveis * 100 : NaN
+  };
+}
+
+function desenharResumo() {
+  const opcoes = [...document.getElementById("filtro-territorio").options].map(o => o.value);
+  const lista = ["br:total", "ride:total", "mun:5300108"].filter(t => opcoes.includes(t));
+  if (!lista.includes(estado.territorio)) lista.push(estado.territorio);
+  const linhas = lista.map(linhaResumo);
+  const f = (v, fmt = fmtInt) => (Number.isFinite(v) ? fmt.format(v) : "—");
+  const ehDengue = estado.doenca === "dengue";
+  const temSinan = linhas.some(l => Number.isFinite(l.provaveis));
+
+  document.getElementById("titulo-resumo").textContent =
+    `Resumo — ${NOME_DOENCA[estado.doenca]}, ${estado.ano}`;
+  document.getElementById("nota-resumo").textContent =
+    `Notificados: InfoDengue, ${textoPeriodo()}. Prováveis, gravidade e óbitos: SINAN/DATASUS, ano todo de início dos sintomas` +
+    (temSinan ? " (arquivos preliminares no ano corrente)." : " — ainda sem arquivo do DATASUS para este ano.") +
+    " Notificados incluem casos depois descartados; prováveis excluem os descartados.";
+
+  const colsGrav = ehDengue
+    ? `<th>Com sinais de alarme</th><th>Dengue grave</th>` : "";
+  document.getElementById("resumo").innerHTML = `<table class="resumo">
+    <thead>
+      <tr class="cab-grupo"><th></th><th colspan="2">InfoDengue (período)</th><th colspan="${ehDengue ? 8 : 6}">SINAN/DATASUS (ano)</th></tr>
+      <tr><th>Recorte</th><th>Casos notificados</th><th>Incidência /100 mil</th>
+        <th>Casos prováveis</th>${colsGrav}<th>Hospitalizados</th><th>% hospitalizados*</th>
+        <th>Óbitos pelo agravo</th><th>Óbitos em investigação</th><th>Letalidade</th></tr>
+    </thead>
+    <tbody>${linhas.map(l => `<tr class="${l.territorio === estado.territorio ? "selecionado" : ""}">
+      <td>${l.nome}</td><td class="destaque">${f(l.casos)}</td><td>${f(l.inc, fmt1)}</td>
+      <td class="destaque">${f(l.provaveis)}</td>
+      ${ehDengue ? `<td>${f(l.alarme)}</td><td>${f(l.grave)}</td>` : ""}
+      <td>${f(l.hosp)}</td><td>${Number.isFinite(l.hospPct) ? fmt1.format(l.hospPct) + "%" : "—"}</td>
+      <td class="destaque">${f(l.obitos)}</td><td>${f(l.investig)}</td>
+      <td>${Number.isFinite(l.letal) ? new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 3 }).format(l.letal) + "%" : "—"}</td>
+    </tr>`).join("")}</tbody>
+  </table>
+  <p class="nota">* entre os casos com a informação de hospitalização preenchida. Letalidade = óbitos pelo agravo ÷ casos prováveis.</p>`;
 }
 
 // ---------------------------------------------------------------------------
