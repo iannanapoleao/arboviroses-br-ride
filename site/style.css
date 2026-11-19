@@ -207,11 +207,14 @@ select.se { min-width: 84px; }
 button.link { border: 0; background: none; color: var(--azul); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; padding: 0 2px; }
 
 .linha-unica { grid-template-columns: 1fr; }
-.tabela-rolagem { overflow-x: auto; }
-table.resumo { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
-table.resumo th, table.resumo td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--borda); white-space: nowrap; }
-table.resumo th:first-child, table.resumo td:first-child { text-align: left; }
-table.resumo thead th { font-size: 12px; color: var(--cinza-txt); font-weight: 600; vertical-align: bottom; white-space: normal; }
-table.resumo thead tr.cab-grupo th { color: var(--azul); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--azul-gelo); text-align: center; }
-table.resumo tbody tr.selecionado td { background: #FFF8E1; }
-table.resumo td.destaque { font-weight: 700; color: var(--azul-escuro); }
+.numeros { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0; margin: 6px 0 8px; }
+.numero { padding: 6px 20px 8px; border-left: 1px solid var(--borda); }
+.numero:first-child { border-left: 0; padding-left: 0; }
+.numero.ativo .numero-nome { color: var(--laranja); }
+.numero-nome { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--cinza-txt); }
+.numero-valor { font-size: 30px; font-weight: 800; color: var(--azul-escuro); line-height: 1.15; margin-top: 2px; }
+.numero-sub { font-size: 13px; color: var(--cinza-txt); }
+.numero-mini { display: flex; gap: 18px; margin-top: 10px; }
+.numero-mini div { font-size: 12px; color: var(--cinza-txt); }
+.numero-mini strong { display: block; font-size: 16px; color: var(--cinza-esc); }
+@media (max-width: 560px) { .numero { border-left: 0; padding-left: 0; border-top: 1px solid var(--borda); padding-top: 10px; } .numero:first-child { border-top: 0; } }

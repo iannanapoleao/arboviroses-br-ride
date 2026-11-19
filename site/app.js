@@ -627,36 +627,24 @@ function desenharResumo() {
   const lista = ["br:total", "ride:total", "mun:5300108"].filter(t => opcoes.includes(t));
   if (!lista.includes(estado.territorio)) lista.push(estado.territorio);
   const linhas = lista.map(linhaResumo);
-  const f = (v, fmt = fmtInt) => (Number.isFinite(v) ? fmt.format(v) : "—");
+  const f = v => (Number.isFinite(v) ? fmtInt.format(v) : "—");
   const ehDengue = estado.doenca === "dengue";
-  const temSinan = linhas.some(l => Number.isFinite(l.provaveis));
 
-  document.getElementById("titulo-resumo").textContent =
-    `Resumo — ${NOME_DOENCA[estado.doenca]}, ${estado.ano}`;
+  document.getElementById("titulo-resumo").textContent = `${NOME_DOENCA[estado.doenca]} em números — ${estado.ano}`;
   document.getElementById("nota-resumo").textContent =
-    `Notificados: InfoDengue, ${textoPeriodo()}. Prováveis, gravidade e óbitos: SINAN/DATASUS, ano todo de início dos sintomas` +
-    (temSinan ? " (arquivos preliminares no ano corrente)." : " — ainda sem arquivo do DATASUS para este ano.") +
-    " Notificados incluem casos depois descartados; prováveis excluem os descartados.";
+    `Notificados: InfoDengue, ${textoPeriodo()}. Prováveis, gravidade e óbitos: SINAN/DATASUS, ano todo.`;
 
-  const colsGrav = ehDengue
-    ? `<th>Com sinais de alarme</th><th>Dengue grave</th>` : "";
-  document.getElementById("resumo").innerHTML = `<table class="resumo">
-    <thead>
-      <tr class="cab-grupo"><th></th><th colspan="2">InfoDengue (período)</th><th colspan="${ehDengue ? 8 : 6}">SINAN/DATASUS (ano)</th></tr>
-      <tr><th>Recorte</th><th>Casos notificados</th><th>Incidência /100 mil</th>
-        <th>Casos prováveis</th>${colsGrav}<th>Hospitalizados</th><th>% hospitalizados*</th>
-        <th>Óbitos pelo agravo</th><th>Óbitos em investigação</th><th>Letalidade</th></tr>
-    </thead>
-    <tbody>${linhas.map(l => `<tr class="${l.territorio === estado.territorio ? "selecionado" : ""}">
-      <td>${l.nome}</td><td class="destaque">${f(l.casos)}</td><td>${f(l.inc, fmt1)}</td>
-      <td class="destaque">${f(l.provaveis)}</td>
-      ${ehDengue ? `<td>${f(l.alarme)}</td><td>${f(l.grave)}</td>` : ""}
-      <td>${f(l.hosp)}</td><td>${Number.isFinite(l.hospPct) ? fmt1.format(l.hospPct) + "%" : "—"}</td>
-      <td class="destaque">${f(l.obitos)}</td><td>${f(l.investig)}</td>
-      <td>${Number.isFinite(l.letal) ? new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 3 }).format(l.letal) + "%" : "—"}</td>
-    </tr>`).join("")}</tbody>
-  </table>
-  <p class="nota">* entre os casos com a informação de hospitalização preenchida. Letalidade = óbitos pelo agravo ÷ casos prováveis.</p>`;
+  document.getElementById("resumo").innerHTML = `<div class="numeros">${linhas.map(l => `
+    <div class="numero${l.territorio === estado.territorio ? " ativo" : ""}">
+      <div class="numero-nome">${l.nome}</div>
+      <div class="numero-valor">${f(l.casos)}</div>
+      <div class="numero-sub">notificados · ${f(l.provaveis)} prováveis</div>
+      <div class="numero-mini">
+        <div><strong>${f(ehDengue ? l.grave : l.hosp)}</strong>${ehDengue ? "dengue grave" : "hospitalizados"}</div>
+        <div><strong>${f(l.obitos)}</strong>óbitos</div>
+        <div><strong>${Number.isFinite(l.letal) ? new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(l.letal) + "%" : "—"}</strong>letalidade</div>
+      </div>
+    </div>`).join("")}</div>`;
 }
 
 // ---------------------------------------------------------------------------
