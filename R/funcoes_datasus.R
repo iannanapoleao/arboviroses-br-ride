@@ -15,24 +15,30 @@ VARS_SINAN <- c("SG_UF", "ID_MN_RESI", "SEM_PRI", "CLASSI_FIN", "CRITERIO",
 # Código de "descartado" em CLASSI_FIN
 DESCARTADO <- c(dengue = "5", chikungunya = "5", zika = "2")
 
-baixar_sinan <- function(doenca, ano) {
+baixar_sinan <- function(doenca, ano, tentativas = 4) {
   sistema <- SISTEMAS_SINAN[[doenca]]
-  message("Baixando ", sistema, " ", ano, " (arquivo nacional, pode demorar)...")
   vars_doenca <- if (doenca == "zika") setdiff(VARS_SINAN, "HOSPITALIZ") else VARS_SINAN
   baixar <- function(vars) microdatasus::fetch_datasus(
-    year_start = ano, year_end = ano, information_system = sistema, vars = vars
+    year_start = ano, year_end = ano, information_system = sistema, vars = vars,
+    timeout = 900
   )
-  tryCatch(
-    baixar(vars_doenca),
-    error = function(e) {
-      # se alguma variável não existir no arquivo, tenta trazer todas
-      message("  com seleção de variáveis falhou (", conditionMessage(e), "); tentando completo")
-      tryCatch(baixar(NULL), error = function(e2) {
-        message("  não disponível/erro: ", conditionMessage(e2))
-        NULL
-      })
-    }
-  )
+  # o FTP do DATASUS cai com frequência: tenta de novo algumas vezes
+  for (i in seq_len(tentativas)) {
+    message("Baixando ", sistema, " ", ano, " (tentativa ", i, " de ", tentativas, ")...")
+    df <- tryCatch(
+      baixar(vars_doenca),
+      error = function(e) {
+        message("  erro: ", conditionMessage(e))
+        if (grepl("Unknown variable|variable", conditionMessage(e), ignore.case = TRUE)) {
+          tryCatch(baixar(NULL), error = function(e2) NULL)
+        } else NULL
+      }
+    )
+    if (!is.null(df) && nrow(df) > 0) return(df)
+    if (i < tentativas) Sys.sleep(60 * i)
+  }
+  message("  não foi possível baixar ", sistema, " ", ano, " desta vez")
+  NULL
 }
 
 col <- function(df, nome) {

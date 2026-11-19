@@ -1,11 +1,12 @@
 name: InfoDengue Brasil por UF (Mosqlimate, retomável)
 
-# Roda todo dia. Cada UF atualizada fica "em dia" por 5 dias, então na prática
-# cada UF é renovada uma vez por semana; o resto do tempo a execução só termina
-# a carga que ficou pendente (o Mosqlimate limita muito as chamadas).
+# Roda a cada 4 horas. Cada UF atualizada fica "em dia" por 5 dias, então na
+# prática cada UF é renovada uma vez por semana; nas outras execuções o script
+# só termina a carga pendente ou encerra em poucos minutos (o Mosqlimate limita
+# muito as chamadas, por isso a carga é feita aos poucos).
 on:
   schedule:
-    - cron: "41 6 * * *"   # 03:41 de Brasília
+    - cron: "41 */4 * * *"   # a cada 4 horas
   workflow_dispatch:
     inputs:
       ano_inicial:
