@@ -274,7 +274,7 @@ function desenharCards(serie) {
   const zona = zonaDe(incUlt, pUlt);
 
   const varTxt = variacao === null ? "sem dado do ano anterior"
-    : `<span class="${variacao > 0 ? "sobe" : "desce"}">${fmtPct.format(variacao)}%</span> vs. SE 01–${String(seMax).padStart(2, "0")} de ${ano - 1} (${fmtInt.format(casosAnt)} casos)`;
+    : `<span class="${variacao > 0 ? "sobe" : "desce"}">${variacao > 0 ? "aumento" : "redução"}</span> em relação às SE 01–${String(seMax).padStart(2, "0")} de ${ano - 1} (${fmtInt.format(casosAnt)} casos)`;
 
   el.innerHTML = `
     <div class="card"><div class="titulo">Casos notificados · ${doenca} · ${terr}</div>
