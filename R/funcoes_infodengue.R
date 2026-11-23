@@ -41,6 +41,7 @@ padronizar_infodengue <- function(df, doenca, fonte) {
     casos       = num(pegar(df, "casos")),
     casos_est   = num(pegar(df, "casos_est")),
     casprov     = num(pegar(df, "casprov")),
+    casprov_est = num(pegar(df, "casprov_est")),
     casconf     = num(pegar(df, "casconf")),
     p_inc100k   = num(pegar(df, "p_inc100k")),
     nivel       = as.integer(pegar(df, "nivel")),
@@ -89,11 +90,13 @@ agregar_uf <- function(mun, uf) {
       n_municipios = n_distinct(geocode),
       casos   = sum(casos, na.rm = TRUE),
       casprov = if (all(is.na(casprov))) NA_real_ else sum(casprov, na.rm = TRUE),
+      casprov_est = if (all(is.na(casprov_est))) NA_real_ else sum(casprov_est, na.rm = TRUE),
+      casos_est = if (all(is.na(casos_est))) NA_real_ else sum(casos_est, na.rm = TRUE),
       casconf = if (all(is.na(casconf))) NA_real_ else sum(casconf, na.rm = TRUE),
       pop     = sum(pop, na.rm = TRUE),
       .groups = "drop"
     ) |>
-    mutate(uf = uf, inc_100k = casos / pop * 1e5, .after = doenca)
+    mutate(uf = uf, inc_100k = casprov / pop * 1e5, .after = doenca)
 }
 
 # -----------------------------------------------------------------------------

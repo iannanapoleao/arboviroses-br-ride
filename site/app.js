@@ -49,8 +49,9 @@ function parseLinha(d) {
     ano: +d.ano,
     se: +d.se,
     data: d.data_ini_se ? new Date(d.data_ini_se + "T00:00:00Z") : null,
-    casos: num(d.casos),
-    est: num(d.casos_est),
+    casos: num(d.casprov),      // casos prováveis (InfoDengue)
+    notif: num(d.casos),        // casos notificados
+    est: num(d.casprov_est),    // nowcasting dos prováveis
     pop: num(d.pop),
     atualizado: d.atualizado_em || "",
     fonte: "InfoDengue"
@@ -85,7 +86,7 @@ function completarComSinan(linhas, perfil, nivel) {
       return {
         doenca: p.doenca, geocode: nivel === "mun" ? id : null, municipio: m ? m.municipio : null,
         uf: nivel === "mun" ? (m ? m.uf : null) : id, ano: p.ano, se: +p.categoria,
-        data: null, casos: p.n, est: NaN, pop: pop.get(`${id}|${p.ano}`) ?? pop.get(`${id}|${p.ano - 1}`) ?? NaN,
+        data: null, casos: p.n, notif: NaN, est: NaN, pop: pop.get(`${id}|${p.ano}`) ?? pop.get(`${id}|${p.ano - 1}`) ?? NaN,
         atualizado: "", fonte: "SINAN"
       };
     });
@@ -255,14 +256,17 @@ function nomeTerritorio(territorio) {
 function serieSemanal(linhas) {
   const g = d3.rollups(linhas, v => ({
     casos: d3.sum(v, d => d.casos || 0),
+    notif: v.some(d => Number.isFinite(d.notif)) ? d3.sum(v, d => d.notif || 0) : NaN,
     est: v.some(d => Number.isFinite(d.est)) ? d3.sum(v, d => (Number.isFinite(d.est) ? d.est : d.casos || 0)) : NaN,
     pop: d3.sum(v, d => d.pop || 0),
     data: d3.min(v, d => d.data),
-    sinan: v.some(d => d.fonte === "SINAN")
+    sinan: v.some(d => d.fonte === "SINAN"),
+    valido: v.some(d => Number.isFinite(d.casos))
   }), d => d.ano, d => d.se);
   const out = [];
   for (const [ano, semanas] of g) for (const [se, v] of semanas) {
-    out.push({ ano, se, data: v.data, casos: v.casos, est: v.est, pop: v.pop, sinan: v.sinan,
+    if (!v.valido) continue;  // ex.: Zika no InfoDengue, sem casos prováveis
+    out.push({ ano, se, data: v.data, casos: v.casos, notif: v.notif, est: v.est, pop: v.pop, sinan: v.sinan,
                inc: v.pop > 0 ? v.casos / v.pop * 1e5 : NaN });
   }
   return out.sort((a, b) => a.ano - b.ano || a.se - b.se);
@@ -354,7 +358,7 @@ function desenharCards(serie) {
     : `<span class="${variacao > 0 ? "sobe" : "desce"}">${variacao > 0 ? "aumento" : "redução"}</span> em relação às SE ${pad2(seIni)}–${pad2(seMax)} de ${ano - 1} (${fmtInt.format(casosAnt)} casos)`;
 
   el.innerHTML = `
-    <div class="card"><div class="titulo">Casos notificados · ${doenca} · ${terr}</div>
+    <div class="card"><div class="titulo">Casos prováveis · ${doenca} · ${terr}</div>
       <div class="valor">${fmtInt.format(casos)}</div>
       <div class="detalhe">SE ${pad2(seIni)} a ${pad2(seMax)}/${ano}</div></div>
     <div class="card claro"><div class="titulo">Incidência acumulada</div>
@@ -365,7 +369,7 @@ function desenharCards(serie) {
       <div class="detalhe">${varTxt}</div></div>
     <div class="card laranja"><div class="titulo">Últimas 4 semanas do período</div>
       <div class="valor">${fmtInt.format(casos4)}</div>
-      <div class="detalhe">${zona ? `SE ${seMax} na zona <strong>${zona.nome.toLowerCase()}</strong> do canal endêmico` : "casos notificados (dados preliminares)"}</div></div>`;
+      <div class="detalhe">${zona ? `SE ${seMax} na zona <strong>${zona.nome.toLowerCase()}</strong> do canal endêmico` : "casos prováveis (dados preliminares)"}</div></div>`;
 }
 
 function acumuladoPor(linhas, chave, ano) {
@@ -487,7 +491,7 @@ function desenharCurva(serie) {
   const pts = atual.map(d => ({
     ...d,
     prelim: ano === anoMaisRecente && d.se > seMax - 3,
-    grupo: ano === anoMaisRecente && d.se > seMax - 3 ? "Preliminares" : "Notificados"
+    grupo: ano === anoMaisRecente && d.se > seMax - 3 ? "Preliminares" : "Prováveis"
   }));
   const nowcast = pts.filter(d => d.prelim && Number.isFinite(d.est) && d.est > d.casos);
   const fimEixo = ano === anoMaisRecente ? seMax : Math.max(52, seMax);
@@ -496,8 +500,8 @@ function desenharCurva(serie) {
   const recorte = temRecorte();
   nota.innerHTML = `${NOME_DOENCA[estado.doenca]}, ${ano}: casos por semana epidemiológica de início dos sintomas` +
     (recorte ? ` — período em destaque: ${textoPeriodo()}` : "") +
-    (usaSinan ? " (casos prováveis do SINAN/DATASUS)." : " (casos notificados, InfoDengue).") +
-    `<span class="legenda-curva"><span><i style="background:${COR.azul}"></i>Notificados</span>` +
+    (usaSinan ? " (casos prováveis, SINAN/DATASUS)." : " (casos prováveis, InfoDengue).") +
+    `<span class="legenda-curva"><span><i style="background:${COR.azul}"></i>Prováveis</span>` +
     (pts.some(d => d.prelim) ? `<span><i style="background:${COR.azulCeu}"></i>Últimas semanas (preliminares)</span>` : "") +
     (nowcast.length ? `<span><i style="border:2px dashed ${COR.laranja};background:none"></i>Estimado pelo nowcasting do InfoDengue</span>` : "") +
     "</span>";
@@ -509,7 +513,7 @@ function desenharCurva(serie) {
     x: { type: "band", domain: d3.range(1, fimEixo + 1), label: "Semana epidemiológica", padding: 0.15,
          tickFormat: d => (d % 4 === 1 ? d : "") },
     y: { label: "Casos", grid: true, tickFormat: d => fmtInt.format(d) },
-    color: { domain: ["Notificados", "Preliminares"], range: [COR.azul, COR.azulCeu] },
+    color: { domain: ["Prováveis", "Preliminares"], range: [COR.azul, COR.azulCeu] },
     marks: [
       Plot.barY(nowcast, { x: "se", y: "est", fill: "#FFF6E0", stroke: COR.laranja, strokeDasharray: "4,3", strokeWidth: 1.4,
         strokeOpacity: d => (noPeriodo(d) ? 1 : 0.3), fillOpacity: d => (noPeriodo(d) ? 1 : 0.3) }),
@@ -599,8 +603,10 @@ function perfilDe(territorio) {
 
 function linhaResumo(territorio) {
   const serie = serieSemanal(linhasTerritorio(territorio, estado.doenca))
-    .filter(d => d.ano === estado.ano && noPeriodo(d) && !d.sinan);
+    .filter(d => d.ano === estado.ano && noPeriodo(d));
   const casos = serie.length ? d3.sum(serie, d => d.casos) : NaN;
+  const sinan = serie.some(d => d.sinan);
+  const notif = serie.some(d => Number.isFinite(d.notif)) ? d3.sum(serie, d => d.notif || 0) : NaN;
   const seMax = d3.max(serie, d => d.se);
   const pop = serie.find(d => d.se === seMax)?.pop;
   const p = perfilDe(territorio);
@@ -610,11 +616,11 @@ function linhaResumo(territorio) {
   const obitos = p.length ? soma("evolucao", "Óbito pelo agravo") : NaN;
   return {
     territorio, nome: nomeTerritorio(territorio),
-    casos, inc: pop > 0 ? casos / pop * 1e5 : NaN,
+    casos, notif, sinan, inc: pop > 0 ? casos / pop * 1e5 : NaN,
     provaveis,
     alarme: estado.doenca === "dengue" && p.length ? soma("classificacao", "Dengue com sinais de alarme") : NaN,
     grave: estado.doenca === "dengue" && p.length ? soma("classificacao", "Dengue grave") : NaN,
-    hosp: p.length ? hospSim : NaN,
+    hosp: hospSim + hospNao > 0 ? hospSim : NaN,
     hospPct: hospSim + hospNao > 0 ? hospSim / (hospSim + hospNao) * 100 : NaN,
     obitos,
     investig: p.length ? soma("evolucao", "Óbito em investigação") : NaN,
@@ -632,13 +638,13 @@ function desenharResumo() {
 
   document.getElementById("titulo-resumo").textContent = `${NOME_DOENCA[estado.doenca]} em números — ${estado.ano}`;
   document.getElementById("nota-resumo").textContent =
-    `Notificados: InfoDengue, ${textoPeriodo()}. Prováveis, gravidade e óbitos: SINAN/DATASUS, ano todo.`;
+    `Casos prováveis: ${linhas.some(l => l.sinan) ? "SINAN/DATASUS" : "InfoDengue"}, ${textoPeriodo()}. Gravidade e óbitos: SINAN/DATASUS, ano todo.`;
 
   document.getElementById("resumo").innerHTML = `<div class="numeros">${linhas.map(l => `
     <div class="numero${l.territorio === estado.territorio ? " ativo" : ""}">
       <div class="numero-nome">${l.nome}</div>
       <div class="numero-valor">${f(l.casos)}</div>
-      <div class="numero-sub">notificados · ${f(l.provaveis)} prováveis</div>
+      <div class="numero-sub">casos prováveis${Number.isFinite(l.notif) ? ` · ${f(l.notif)} notificados` : ""}</div>
       <div class="numero-mini">
         <div><strong>${f(ehDengue ? l.grave : l.hosp)}</strong>${ehDengue ? "dengue grave" : "hospitalizados"}</div>
         <div><strong>${f(l.obitos)}</strong>óbitos</div>

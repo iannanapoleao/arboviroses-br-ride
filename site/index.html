@@ -63,12 +63,12 @@
     <section class="linha">
       <article class="painel">
         <h2>Incidência acumulada — RIDE-DF</h2>
-        <p class="nota nota-periodo-mapa">Casos notificados por 100 mil habitantes no período. Clique num município para filtrar.</p>
+        <p class="nota nota-periodo-mapa">Casos prováveis por 100 mil habitantes no período. Clique num município para filtrar.</p>
         <div id="mapa-ride" class="grafico"></div>
       </article>
       <article class="painel">
         <h2>Incidência acumulada — Brasil por UF</h2>
-        <p class="nota nota-periodo-mapa">Casos notificados por 100 mil habitantes no período. Clique numa UF para filtrar.</p>
+        <p class="nota nota-periodo-mapa">Casos prováveis por 100 mil habitantes no período. Clique numa UF para filtrar.</p>
         <div id="mapa-brasil" class="grafico"></div>
       </article>
     </section>
@@ -117,10 +117,10 @@
       <h2>Sobre os dados</h2>
       <ul>
         <li><strong>Fonte:</strong> InfoDengue (Fiocruz/FGV), a partir das notificações do SINAN. RIDE-DF e Brasil (soma dos municípios por UF) pela API pública do InfoDengue. Atualização automática semanal.</li>
-        <li><strong>Casos:</strong> casos notificados por semana de início dos sintomas. As semanas mais recentes são preliminares e costumam subir nas atualizações seguintes.</li>
-        <li><strong>Incidência:</strong> casos ÷ população × 100 mil, com a população usada pelo InfoDengue.</li>
+        <li><strong>Casos:</strong> casos prováveis (notificados menos descartados), do InfoDengue, por semana de início dos sintomas. O nowcasting mostrado na curva é a estimativa de prováveis do próprio InfoDengue. As semanas mais recentes são preliminares e costumam subir nas atualizações seguintes.</li>
+        <li><strong>Incidência:</strong> casos prováveis ÷ população × 100 mil, com a população usada pelo InfoDengue.</li>
         <li><strong>Canal endêmico:</strong> mediana, 1º e 3º quartis da incidência semanal dos anos anteriores (desde 2016), excluindo os dois anos de maior incidência do território. Zonas: êxito (abaixo do Q1), segurança (Q1 a mediana), alerta (mediana a Q3) e epidêmica (acima do Q3).</li>
-        <li><strong>Zika:</strong> o InfoDengue tem dados de Zika da RIDE-DF só até o início de 2024; por isso o painel abre a Zika no último ano disponível.</li>
+        <li><strong>Zika:</strong> o InfoDengue não traz casos prováveis de Zika; para ela, o painel usa os casos prováveis do SINAN/DATASUS (2025 em diante), sem nowcasting nem canal endêmico.</li>
         <li><strong>Perfil (SINAN/DATASUS):</strong> casos prováveis, isto é, notificados menos descartados, pela semana de início dos sintomas e pelo local de residência. O DATASUS publica os arquivos com atraso, então o ano corrente pode estar incompleto ou indisponível. Quando o InfoDengue não tem um ano (caso da Zika depois de 2024), a curva e os mapas usam os casos prováveis do SINAN.</li>
         <li><strong>DF:</strong> nas fontes públicas, o Distrito Federal entra como um município só (Brasília), sem quebra por Região Administrativa.</li>
         <li>RIDE-DF conforme a LC 94/1998, com redação da LC 163/2018 (DF + 29 municípios de GO + 4 de MG).</li>

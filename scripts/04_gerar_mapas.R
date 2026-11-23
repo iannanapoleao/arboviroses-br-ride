@@ -11,10 +11,10 @@ ano_mapa <- as.integer(Sys.getenv("MAPA_ANO", ANO_ATUAL))
 ler <- function(arq) {
   readr::read_csv(arq, show_col_types = FALSE) |>
     mutate(ano = as.integer(ano), se = as.integer(se),
-           casos = as.numeric(casos), pop = as.numeric(pop))
+           casos = as.numeric(casos), casprov = as.numeric(casprov), pop = as.numeric(pop))
 }
 fonte_txt <- function(se_max) {
-  sprintf("Fonte: InfoDengue (notificações do SINAN). SE 01 a %02d/%d. Dados sujeitos a revisão.",
+  sprintf("Fonte: InfoDengue (casos prováveis, SINAN). SE 01 a %02d/%d. Dados sujeitos a revisão.",
           se_max, ano_mapa)
 }
 
@@ -35,7 +35,7 @@ if (file.exists(arq_ride)) {
   malha <- malha_ride(ride)
   acum <- acumular(ler(arq_ride), "geocode", ano_mapa)
 
-  for (d in names(DOENCAS)) {
+  for (d in c("dengue", "chikungunya")) {  # Zika não tem prováveis no InfoDengue
     dd <- filter(acum, doenca == d)
     if (nrow(dd) == 0) next
     m <- malha |>
@@ -53,7 +53,7 @@ if (file.exists(arq_ride)) {
     p <- mapa_incidencia(
       m,
       titulo = paste("Incidência de", DOENCAS[[d]], "— RIDE-DF"),
-      subtitulo = paste("Casos notificados por 100 mil habitantes,", ano_mapa),
+      subtitulo = paste("Casos prováveis por 100 mil habitantes,", ano_mapa),
       legenda_fonte = fonte_txt(max(dd$se_max, na.rm = TRUE)),
       rotulos = top
     )
@@ -71,14 +71,14 @@ if (length(arqs_br) > 0) {
   malha <- malha_ufs()
   acum <- acumular(bind_rows(lapply(arqs_br, ler)), "uf", ano_mapa)
 
-  for (d in names(DOENCAS)) {
+  for (d in c("dengue", "chikungunya")) {  # Zika não tem prováveis no InfoDengue
     dd <- filter(acum, doenca == d)
     if (nrow(dd) == 0) next
     m <- left_join(malha, dd, by = "uf")
     p <- mapa_incidencia(
       m,
       titulo = paste("Incidência de", DOENCAS[[d]], "por UF — Brasil"),
-      subtitulo = paste("Casos notificados por 100 mil habitantes,", ano_mapa),
+      subtitulo = paste("Casos prováveis por 100 mil habitantes,", ano_mapa),
       legenda_fonte = fonte_txt(max(dd$se_max, na.rm = TRUE))
     )
     salvar_slide(p, sprintf("figuras/brasil_incidencia_%s_%d.png", d, ano_mapa))

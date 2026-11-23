@@ -80,7 +80,7 @@ acumular <- function(dados, chave, ano_alvo) {
     group_by(across(all_of(c("doenca", chave)))) |>
     arrange(se, .by_group = TRUE) |>
     summarise(
-      casos  = sum(casos, na.rm = TRUE),
+      casos  = sum(casprov, na.rm = TRUE),   # casos prováveis
       pop    = dplyr::last(pop),
       se_max = max(se, na.rm = TRUE),
       .groups = "drop"
