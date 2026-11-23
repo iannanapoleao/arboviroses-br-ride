@@ -370,6 +370,7 @@ function desenharCards(serie) {
   const notif = atual.some(d => Number.isFinite(d.notif)) ? d3.sum(atual, d => d.notif || 0) : NaN;
   const g = linhaResumo(estado.territorio);
   const fi = v => (Number.isFinite(v) ? fmtInt.format(v) : "—");
+  const pct2 = v => (Number.isFinite(v) ? new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v) + "%" : "—");
   const ehDengue = estado.doenca === "dengue";
   const fonteCasos = atual.some(d => d.sinan) ? "SINAN/DATASUS" : "InfoDengue";
   const popFim = atual.find(d => d.se === seMax)?.pop || d3.max(atual, d => d.pop);
@@ -417,8 +418,11 @@ function desenharCards(serie) {
       <div class="valor">${fi(g.obitos)}</div>
       <div class="detalhe">${fi(g.investig)} em investigação · SINAN, ano todo</div></div>
     <div class="card cinza"><div class="titulo">Letalidade</div>
-      <div class="valor">${Number.isFinite(g.letal) ? new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(g.letal) + "%" : "—"}</div>
-      <div class="detalhe">óbitos ÷ casos prováveis (SINAN, ano todo)</div></div>`;
+      <div class="letalidades">
+        <div title="Óbitos pelo agravo ÷ casos prováveis × 100"><div class="valor">${pct2(g.letal)}</div><div class="detalhe">geral</div></div>
+        ${ehDengue ? `<div title="Óbitos pelo agravo ÷ (dengue com sinais de alarme + dengue grave) × 100"><div class="valor">${pct2(g.letalGraves)}</div><div class="detalhe">casos graves</div></div>` : ""}
+      </div>
+      <div class="detalhe">SINAN, ano todo</div></div>`;
 }
 
 function acumuladoPor(linhas, chave, ano) {
@@ -675,7 +679,12 @@ function linhaResumo(territorio) {
     hospPct: hospSim + hospNao > 0 ? hospSim / (hospSim + hospNao) * 100 : NaN,
     obitos,
     investig: p.length ? soma("evolucao", "Óbito em investigação") : NaN,
-    letal: provaveis > 0 ? obitos / provaveis * 100 : NaN
+    letal: provaveis > 0 ? obitos / provaveis * 100 : NaN,
+    // MS: óbitos ÷ (dengue com sinais de alarme + dengue grave) × 100
+    letalGraves: estado.doenca === "dengue" && p.length ? (() => {
+      const graves = soma("classificacao", "Dengue com sinais de alarme") + soma("classificacao", "Dengue grave");
+      return graves > 0 ? obitos / graves * 100 : NaN;
+    })() : NaN
   };
 }
 

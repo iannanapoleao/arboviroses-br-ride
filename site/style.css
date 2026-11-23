@@ -223,3 +223,6 @@ button.link { border: 0; background: none; color: var(--azul); font: inherit; fo
 
 @media (max-width: 1000px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 520px) { .cards { grid-template-columns: 1fr; } }
+
+.letalidades { display: flex; gap: 22px; }
+.letalidades .detalhe { margin-bottom: 4px; }
