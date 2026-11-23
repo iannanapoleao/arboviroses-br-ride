@@ -14,7 +14,8 @@ const ZONAS = [
   { nome: "Epidêmica", cor: "#FBD9A0" }
 ];
 const NOME_DOENCA = { dengue: "Dengue", chikungunya: "Chikungunya", zika: "Zika" };
-const ANO_BASE_MIN = 2016;
+const ANOS_BASE = 7;          // canal endêmico: últimos 7 anos antes do ano analisado
+const SEMANAS_ABERTAS = 8;    // semanas recentes ainda em investigação (encerramento em até 60 dias)
 const NOME_UF = {
   AC: "Acre", AL: "Alagoas", AP: "Amapá", AM: "Amazonas", BA: "Bahia", CE: "Ceará",
   DF: "Distrito Federal", ES: "Espírito Santo", GO: "Goiás", MA: "Maranhão",
@@ -283,7 +284,7 @@ function serieSemanal(linhas) {
 // Canal endêmico: mediana, Q1 e Q3 da incidência semanal dos anos-base,
 // excluindo os dois anos de maior incidência acumulada
 function canalEndemico(serie, anoAlvo) {
-  const porAno = d3.group(serie.filter(d => d.ano < anoAlvo && d.ano >= ANO_BASE_MIN && d.se <= 52), d => d.ano);
+  const porAno = d3.group(serie.filter(d => d.ano < anoAlvo && d.ano >= anoAlvo - ANOS_BASE && d.se <= 52), d => d.ano);
   let anos = [...porAno.entries()]
     .filter(([, v]) => v.length >= 40)
     .map(([ano, v]) => ({ ano, total: d3.sum(v, d => d.inc || 0), semanas: new Map(v.map(d => [d.se, d.inc])) }));
@@ -295,6 +296,25 @@ function canalEndemico(serie, anoAlvo) {
     return { se, q1: d3.quantileSorted(v, 0.25), med: d3.quantileSorted(v, 0.5), q3: d3.quantileSorted(v, 0.75) };
   });
   return { pontos, anosBase: anos.map(a => a.ano).sort(), excluidos: excluidos.sort() };
+}
+
+// Nas semanas recentes, fichas ainda em investigação contam como prováveis e
+// inflam a série. Para o canal, essas semanas usam os notificados × a proporção
+// de prováveis das semanas anteriores, já encerradas.
+function corrigirAbertas(serie, ano) {
+  const doAno = serie.filter(d => d.ano === ano);
+  const ultimoAno = d3.max(dados.ride.concat(dados.brasil).filter(d => d.doenca === estado.doenca && d.casos > 0), d => d.ano);
+  const seMax = d3.max(doAno, d => d.se);
+  if (ano !== ultimoAno || !doAno.length) return { pontos: doAno.map(d => ({ ...d, aberta: false })), prop: null };
+  const fechadas = doAno.filter(d => d.se > seMax - 2 * SEMANAS_ABERTAS && d.se <= seMax - SEMANAS_ABERTAS && Number.isFinite(d.notif) && d.notif > 0);
+  const prop = fechadas.length ? d3.sum(fechadas, d => d.casos) / d3.sum(fechadas, d => d.notif) : null;
+  const pontos = doAno.map(d => {
+    const aberta = d.se > seMax - SEMANAS_ABERTAS;
+    if (!aberta || prop === null || !Number.isFinite(d.notif)) return { ...d, aberta };
+    const casos = Math.min(d.casos, d.notif * prop);
+    return { ...d, aberta, casosBrutos: d.casos, incBruta: d.inc, casos, inc: d.pop > 0 ? casos / d.pop * 1e5 : NaN };
+  });
+  return { pontos, prop };
 }
 
 function zonaDe(valor, p) {
@@ -363,7 +383,7 @@ function desenharCards(serie) {
   const casos4 = d3.sum(ult4, d => d.casos);
   const canal = canalEndemico(serie, ano);
   const pUlt = canal.pontos.find(p => p.se === Math.min(seMax, 52));
-  const incUlt = atual.find(d => d.se === seMax)?.inc;
+  const incUlt = corrigirAbertas(serie, ano).pontos.find(d => d.se === seMax)?.inc;
   const zona = zonaDe(incUlt, pUlt);
 
   const varTxt = variacao === null ? "sem dado do ano anterior"
@@ -564,7 +584,9 @@ function desenharCanal(serie) {
   document.getElementById("titulo-canal").textContent = `Canal endêmico — ${terr}`;
   const nota = document.getElementById("nota-canal");
   const canal = canalEndemico(serie, ano);
-  const atual = serie.filter(d => d.ano === ano && d.se <= 52);
+  const corr = corrigirAbertas(serie, ano);
+  const atual = corr.pontos.filter(d => d.se <= 52);
+  const abertas = atual.filter(d => d.aberta && Number.isFinite(d.incBruta));
 
   if (!canal.pontos.length) {
     nota.textContent = "";
@@ -577,7 +599,8 @@ function desenharCanal(serie) {
   nota.textContent = `Incidência semanal por 100 mil hab.` +
     (temRecorte() ? ` Período em destaque: ${textoPeriodo()}.` : "") +
     ` Base: ${canal.anosBase.join(", ")}` +
-    (canal.excluidos.length ? ` (excluídos ${canal.excluidos.join(" e ")}, de maior incidência).` : ".");
+    (canal.excluidos.length ? ` (excluídos ${canal.excluidos.join(" e ")}, de maior incidência).` : ".") +
+    (abertas.length ? ` Últimas ${SEMANAS_ABERTAS} semanas corrigidas pela proporção de prováveis das semanas já encerradas (${fmt1.format(corr.prop * 100)}%); os pontos vazados mostram o valor sem correção.` : "");
 
   const ymax = Math.max(d3.max(canal.pontos, p => p.q3) || 0, d3.max(atual, d => d.inc) || 0) * 1.15 || 1;
   const bandas = canal.pontos.flatMap(p => [
@@ -596,8 +619,10 @@ function desenharCanal(serie) {
     marks: [
       Plot.areaY(bandas, { x: "se", y1: "y1", y2: "y2", fill: "zona", z: "zona", curve: "monotone-x" }),
       Plot.lineY(canal.pontos, { x: "se", y: "med", stroke: "#C9A21A", strokeDasharray: "3,3", strokeWidth: 1, curve: "monotone-x" }),
-      Plot.lineY(atual, { x: "se", y: "inc", stroke: COR.azulEscuro, strokeWidth: 2.6, curve: "monotone-x" }),
+      Plot.lineY(atual.filter(d => !d.aberta), { x: "se", y: "inc", stroke: COR.azulEscuro, strokeWidth: 2.6, curve: "monotone-x" }),
+      Plot.lineY(atual.filter((d, i) => d.aberta || (atual[i + 1] && atual[i + 1].aberta)), { x: "se", y: "inc", stroke: COR.azulEscuro, strokeWidth: 2.2, strokeDasharray: "5,3", curve: "monotone-x" }),
       Plot.dot(atual, { x: "se", y: "inc", fill: COR.azulEscuro, r: 2.2 }),
+      Plot.dot(abertas, { x: "se", y: "incBruta", stroke: COR.cinzaEsc, fill: "white", r: 2.6 }),
       // semanas fora do período ficam esmaecidas
       Plot.rect(
         [[0.5, estado.seIni - 0.5], [estado.seFim + 0.5, 52.5]].filter(([a, b]) => b > a)
@@ -609,7 +634,8 @@ function desenharCanal(serie) {
         title: d => {
           const p = canal.pontos.find(q => q.se === d.se);
           const z = zonaDe(d.inc, p);
-          return `SE ${d.se}/${d.ano}\n${fmt1.format(d.inc)} por 100 mil (${fmtInt.format(d.casos)} casos)` +
+          return `SE ${d.se}/${d.ano}${d.aberta ? " (semana aberta, corrigida)" : ""}\n${fmt1.format(d.inc)} por 100 mil (${fmtInt.format(Math.round(d.casos))} casos)` +
+            (d.aberta && Number.isFinite(d.incBruta) ? `\nSem correção: ${fmt1.format(d.incBruta)} por 100 mil (${fmtInt.format(d.casosBrutos)} casos)` : "") +
             (p ? `\nQ1 ${fmt1.format(p.q1)} · mediana ${fmt1.format(p.med)} · Q3 ${fmt1.format(p.q3)}` : "") +
             (z ? `\nZona: ${z.nome.toLowerCase()}` : "");
         }
