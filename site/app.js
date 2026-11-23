@@ -14,7 +14,8 @@ const ZONAS = [
   { nome: "Epidêmica", cor: "#FBD9A0" }
 ];
 const NOME_DOENCA = { dengue: "Dengue", chikungunya: "Chikungunya", zika: "Zika" };
-const ANOS_BASE = 7;          // canal endêmico: últimos 7 anos antes do ano analisado
+const ANOS_BASE = 7;          // canal endêmico: últimos 7 anos antes do ano analisado (como a SES-DF: 2019–2025 para 2026)
+const EXCLUIR_MAIORES = 0;    // anos de maior incidência retirados da base (a SES-DF não retira)
 const SEMANAS_ABERTAS = 8;    // semanas recentes ainda em investigação (encerramento em até 60 dias)
 const NOME_UF = {
   AC: "Acre", AL: "Alagoas", AP: "Amapá", AM: "Amazonas", BA: "Bahia", CE: "Ceará",
@@ -288,7 +289,7 @@ function canalEndemico(serie, anoAlvo) {
   let anos = [...porAno.entries()]
     .filter(([, v]) => v.length >= 40)
     .map(([ano, v]) => ({ ano, total: d3.sum(v, d => d.inc || 0), semanas: new Map(v.map(d => [d.se, d.inc])) }));
-  const excluidos = anos.slice().sort((a, b) => b.total - a.total).slice(0, 2).map(a => a.ano);
+  const excluidos = anos.slice().sort((a, b) => b.total - a.total).slice(0, EXCLUIR_MAIORES).map(a => a.ano);
   anos = anos.filter(a => !excluidos.includes(a.ano));
   if (anos.length < 3) return { pontos: [], anosBase: anos.map(a => a.ano), excluidos };
   const pontos = d3.range(1, 53).map(se => {
