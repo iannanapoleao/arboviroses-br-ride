@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Painel de Arboviroses — Brasil e RIDE-DF</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=__VERSAO__">
 </head>
 <body>
   <header class="topo">
@@ -52,13 +52,6 @@
   <main>
     <section class="cards" id="cards" aria-live="polite"></section>
 
-    <section class="linha linha-unica">
-      <article class="painel">
-        <h2 id="titulo-resumo">Resumo por recorte</h2>
-        <p class="nota" id="nota-resumo"></p>
-        <div id="resumo" class="tabela-rolagem"></div>
-      </article>
-    </section>
 
     <section class="linha">
       <article class="painel">
@@ -117,7 +110,7 @@
       <h2>Sobre os dados</h2>
       <ul>
         <li><strong>Fonte:</strong> InfoDengue (Fiocruz/FGV), a partir das notificações do SINAN. RIDE-DF e Brasil (soma dos municípios por UF) pela API pública do InfoDengue. Atualização automática semanal.</li>
-        <li><strong>Casos:</strong> casos prováveis (notificados menos descartados), do InfoDengue, por semana de início dos sintomas. O nowcasting mostrado na curva é a estimativa de prováveis do próprio InfoDengue. As semanas mais recentes são preliminares e costumam subir nas atualizações seguintes.</li>
+        <li><strong>Casos:</strong> casos prováveis (notificados menos descartados), do InfoDengue, por semana de início dos sintomas. Nowcasting: o InfoDengue estima os notificados das semanas recentes; o painel aplica a essa estimativa a proporção de prováveis da semana. As semanas mais recentes são preliminares e costumam subir nas atualizações seguintes.</li>
         <li><strong>Incidência:</strong> casos prováveis ÷ população × 100 mil, com a população usada pelo InfoDengue.</li>
         <li><strong>Canal endêmico:</strong> mediana, 1º e 3º quartis da incidência semanal dos anos anteriores (desde 2016), excluindo os dois anos de maior incidência do território. Zonas: êxito (abaixo do Q1), segurança (Q1 a mediana), alerta (mediana a Q3) e epidêmica (acima do Q3).</li>
         <li><strong>Zika:</strong> o InfoDengue não traz casos prováveis de Zika; para ela, o painel usa os casos prováveis do SINAN/DATASUS (2025 em diante), sem nowcasting nem canal endêmico.</li>
@@ -132,6 +125,6 @@
   <script src="lib/d3.min.js"></script>
   <script src="lib/plot.umd.min.js"></script>
   <script src="lib/html-to-image.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=__VERSAO__"></script>
 </body>
 </html>

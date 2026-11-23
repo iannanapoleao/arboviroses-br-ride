@@ -36,6 +36,8 @@ jobs:
         run: |
           mkdir -p _site/dados
           cp -r site/* _site/
+          # força o navegador a baixar a versão nova do script e do estilo
+          sed -i "s/__VERSAO__/${GITHUB_SHA::7}/g" _site/index.html
           cp data/ride/infodengue_ride_semanal.csv _site/dados/ 2>/dev/null || true
           cp data/brasil/infodengue_uf_*.csv _site/dados/ 2>/dev/null || true
           cp data/ref/*.geojson _site/dados/ 2>/dev/null || true

@@ -51,11 +51,19 @@ function parseLinha(d) {
     data: d.data_ini_se ? new Date(d.data_ini_se + "T00:00:00Z") : null,
     casos: num(d.casprov),      // casos prováveis (InfoDengue)
     notif: num(d.casos),        // casos notificados
-    est: num(d.casprov_est),    // nowcasting dos prováveis
+    est: estimadoProvaveis(d),  // nowcasting dos prováveis
     pop: num(d.pop),
     atualizado: d.atualizado_em || "",
     fonte: "InfoDengue"
   };
+}
+
+function estimadoProvaveis(d) {
+  const direto = num(d.casprov_est);
+  if (Number.isFinite(direto)) return direto;
+  const est = num(d.casos_est), notif = num(d.casos), prov = num(d.casprov);
+  // o InfoDengue publica o nowcasting dos notificados; aplica a proporção de prováveis da semana
+  return Number.isFinite(est) && notif > 0 && Number.isFinite(prov) ? est * prov / notif : NaN;
 }
 
 function parsePerfil(d) {
@@ -164,16 +172,16 @@ function montarFiltros() {
   const sel = document.getElementById("filtro-territorio");
   const opt = (v, t) => `<option value="${v}">${t}</option>`;
   let html = "";
+  if (dados.brasil.length) {
+    const ufs = [...new Set(dados.brasil.map(d => d.uf))].sort((a, b) => NOME_UF[a].localeCompare(NOME_UF[b], "pt-BR"));
+    html += `<optgroup label="Brasil">${opt("br:total", "Brasil (total)")}` +
+      ufs.map(u => opt(`uf:${u}`, NOME_UF[u] || u)).join("") + "</optgroup>";
+  }
   if (dados.ride.length) {
     const muns = [...dados.municipios.entries()]
       .sort((a, b) => (a[0] === 5300108 ? -1 : b[0] === 5300108 ? 1 : a[1].municipio.localeCompare(b[1].municipio, "pt-BR")));
     html += `<optgroup label="RIDE-DF">${opt("ride:total", "RIDE-DF (total)")}` +
       muns.map(([g, m]) => opt(`mun:${g}`, `${m.municipio} (${m.uf})`)).join("") + "</optgroup>";
-  }
-  if (dados.brasil.length) {
-    const ufs = [...new Set(dados.brasil.map(d => d.uf))].sort((a, b) => NOME_UF[a].localeCompare(NOME_UF[b], "pt-BR"));
-    html += `<optgroup label="Brasil">${opt("br:total", "Brasil (total)")}` +
-      ufs.map(u => opt(`uf:${u}`, NOME_UF[u] || u)).join("") + "</optgroup>";
   }
   sel.innerHTML = html;
   if (!dados.ride.length) estado.territorio = "br:total";
@@ -316,7 +324,6 @@ function desenhar() {
   const linhas = linhasTerritorio(estado.territorio, estado.doenca);
   const serie = serieSemanal(linhas);
   desenharCards(serie);
-  desenharResumo();
   desenharMapaRide();
   desenharMapaBrasil();
   desenharCurva(serie);
@@ -339,6 +346,11 @@ function desenharCards(serie) {
 
   const seMax = d3.max(atual, d => d.se);
   const casos = d3.sum(atual, d => d.casos);
+  const notif = atual.some(d => Number.isFinite(d.notif)) ? d3.sum(atual, d => d.notif || 0) : NaN;
+  const g = linhaResumo(estado.territorio);
+  const fi = v => (Number.isFinite(v) ? fmtInt.format(v) : "—");
+  const ehDengue = estado.doenca === "dengue";
+  const fonteCasos = atual.some(d => d.sinan) ? "SINAN/DATASUS" : "InfoDengue";
   const popFim = atual.find(d => d.se === seMax)?.pop || d3.max(atual, d => d.pop);
   const inc = popFim > 0 ? casos / popFim * 1e5 : NaN;
 
@@ -360,7 +372,7 @@ function desenharCards(serie) {
   el.innerHTML = `
     <div class="card"><div class="titulo">Casos prováveis · ${doenca} · ${terr}</div>
       <div class="valor">${fmtInt.format(casos)}</div>
-      <div class="detalhe">SE ${pad2(seIni)} a ${pad2(seMax)}/${ano}</div></div>
+      <div class="detalhe">SE ${pad2(seIni)} a ${pad2(seMax)}/${ano} · ${fonteCasos}${Number.isFinite(notif) ? `<br>${fmtInt.format(notif)} notificados` : ""}</div></div>
     <div class="card claro"><div class="titulo">Incidência acumulada</div>
       <div class="valor">${Number.isFinite(inc) ? fmt1.format(inc) : "—"}</div>
       <div class="detalhe">casos por 100 mil habitantes no período</div></div>
@@ -369,7 +381,23 @@ function desenharCards(serie) {
       <div class="detalhe">${varTxt}</div></div>
     <div class="card laranja"><div class="titulo">Últimas 4 semanas do período</div>
       <div class="valor">${fmtInt.format(casos4)}</div>
-      <div class="detalhe">${zona ? `SE ${seMax} na zona <strong>${zona.nome.toLowerCase()}</strong> do canal endêmico` : "casos prováveis (dados preliminares)"}</div></div>`;
+      <div class="detalhe">${zona ? `SE ${seMax} na zona <strong>${zona.nome.toLowerCase()}</strong> do canal endêmico` : "casos prováveis (dados preliminares)"}</div></div>
+    ${ehDengue ? `
+    <div class="card cinza"><div class="titulo">Dengue grave</div>
+      <div class="valor">${fi(g.grave)}</div>
+      <div class="detalhe">${fi(g.alarme)} com sinais de alarme · SINAN, ano todo</div></div>` : `
+    <div class="card cinza"><div class="titulo">Casos prováveis no SINAN</div>
+      <div class="valor">${fi(g.provaveis)}</div>
+      <div class="detalhe">SINAN/DATASUS, ano todo</div></div>`}
+    <div class="card cinza"><div class="titulo">Hospitalizações</div>
+      <div class="valor">${fi(g.hosp)}</div>
+      <div class="detalhe">${Number.isFinite(g.hospPct) ? fmt1.format(g.hospPct) + "% dos casos com a informação" : "sem informação de hospitalização"} · SINAN, ano todo</div></div>
+    <div class="card cinza"><div class="titulo">Óbitos pelo agravo</div>
+      <div class="valor">${fi(g.obitos)}</div>
+      <div class="detalhe">${fi(g.investig)} em investigação · SINAN, ano todo</div></div>
+    <div class="card cinza"><div class="titulo">Letalidade</div>
+      <div class="valor">${Number.isFinite(g.letal) ? new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(g.letal) + "%" : "—"}</div>
+      <div class="detalhe">óbitos ÷ casos prováveis (SINAN, ano todo)</div></div>`;
 }
 
 function acumuladoPor(linhas, chave, ano) {
@@ -503,7 +531,7 @@ function desenharCurva(serie) {
     (usaSinan ? " (casos prováveis, SINAN/DATASUS)." : " (casos prováveis, InfoDengue).") +
     `<span class="legenda-curva"><span><i style="background:${COR.azul}"></i>Prováveis</span>` +
     (pts.some(d => d.prelim) ? `<span><i style="background:${COR.azulCeu}"></i>Últimas semanas (preliminares)</span>` : "") +
-    (nowcast.length ? `<span><i style="border:2px dashed ${COR.laranja};background:none"></i>Estimado pelo nowcasting do InfoDengue</span>` : "") +
+    (nowcast.length ? `<span><i style="border:2px dashed ${COR.laranja};background:none"></i>Estimado (nowcasting do InfoDengue, ajustado para prováveis)</span>` : "") +
     "</span>";
 
   const w = largura("curva");
@@ -628,30 +656,6 @@ function linhaResumo(territorio) {
   };
 }
 
-function desenharResumo() {
-  const opcoes = [...document.getElementById("filtro-territorio").options].map(o => o.value);
-  const lista = ["br:total", "ride:total", "mun:5300108"].filter(t => opcoes.includes(t));
-  if (!lista.includes(estado.territorio)) lista.push(estado.territorio);
-  const linhas = lista.map(linhaResumo);
-  const f = v => (Number.isFinite(v) ? fmtInt.format(v) : "—");
-  const ehDengue = estado.doenca === "dengue";
-
-  document.getElementById("titulo-resumo").textContent = `${NOME_DOENCA[estado.doenca]} em números — ${estado.ano}`;
-  document.getElementById("nota-resumo").textContent =
-    `Casos prováveis: ${linhas.some(l => l.sinan) ? "SINAN/DATASUS" : "InfoDengue"}, ${textoPeriodo()}. Gravidade e óbitos: SINAN/DATASUS, ano todo.`;
-
-  document.getElementById("resumo").innerHTML = `<div class="numeros">${linhas.map(l => `
-    <div class="numero${l.territorio === estado.territorio ? " ativo" : ""}">
-      <div class="numero-nome">${l.nome}</div>
-      <div class="numero-valor">${f(l.casos)}</div>
-      <div class="numero-sub">casos prováveis${Number.isFinite(l.notif) ? ` · ${f(l.notif)} notificados` : ""}</div>
-      <div class="numero-mini">
-        <div><strong>${f(ehDengue ? l.grave : l.hosp)}</strong>${ehDengue ? "dengue grave" : "hospitalizados"}</div>
-        <div><strong>${f(l.obitos)}</strong>óbitos</div>
-        <div><strong>${Number.isFinite(l.letal) ? new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(l.letal) + "%" : "—"}</strong>letalidade</div>
-      </div>
-    </div>`).join("")}</div>`;
-}
 
 // ---------------------------------------------------------------------------
 // Perfil dos casos prováveis (SINAN/DATASUS)

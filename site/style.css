@@ -106,7 +106,7 @@ main { padding-top: 22px; padding-bottom: 40px; }
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 18px;
 }
@@ -120,6 +120,8 @@ main { padding-top: 22px; padding-bottom: 40px; }
 .card.amarelo { border-left-color: var(--amarelo-arc); }
 .card.laranja { border-left-color: var(--laranja); }
 .card.claro { border-left-color: var(--azul-ceu); }
+.card.cinza { border-left-color: var(--cinza-esc); }
+.card.cinza .valor { color: var(--cinza-esc); }
 .card .titulo { font-size: 13px; color: var(--cinza-txt); font-weight: 600; }
 .card .valor { font-size: 28px; font-weight: 800; color: var(--azul-escuro); margin: 2px 0; }
 .card .detalhe { font-size: 13px; color: var(--cinza-txt); }
@@ -218,3 +220,6 @@ button.link { border: 0; background: none; color: var(--azul); font: inherit; fo
 .numero-mini div { font-size: 12px; color: var(--cinza-txt); }
 .numero-mini strong { display: block; font-size: 16px; color: var(--cinza-esc); }
 @media (max-width: 560px) { .numero { border-left: 0; padding-left: 0; border-top: 1px solid var(--borda); padding-top: 10px; } .numero:first-child { border-top: 0; } }
+
+@media (max-width: 1000px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .cards { grid-template-columns: 1fr; } }
