@@ -14,8 +14,8 @@ const ZONAS = [
   { nome: "Epidêmica", cor: "#FBD9A0" }
 ];
 const NOME_DOENCA = { dengue: "Dengue", chikungunya: "Chikungunya", zika: "Zika" };
-const ANOS_BASE = 7;          // canal endêmico: últimos 7 anos antes do ano analisado (como a SES-DF: 2019–2025 para 2026)
-const EXCLUIR_MAIORES = 0;    // anos de maior incidência retirados da base (a SES-DF não retira)
+const ANOS_BASE = 7;          // canal endêmico: últimos 7 anos antes do ano analisado
+const EXCLUIR_MAIORES = 2;    // anos epidêmicos (os 2 de maior incidência) retirados da base
 const SEMANAS_ABERTAS = 8;    // semanas recentes ainda em investigação (encerramento em até 60 dias)
 const NOME_UF = {
   AC: "Acre", AL: "Alagoas", AP: "Amapá", AM: "Amazonas", BA: "Bahia", CE: "Ceará",
