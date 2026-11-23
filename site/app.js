@@ -597,11 +597,8 @@ function desenharCanal(serie) {
     return vazio("canal", msg);
   }
 
-  nota.textContent = `Incidência semanal por 100 mil hab.` +
-    (temRecorte() ? ` Período em destaque: ${textoPeriodo()}.` : "") +
-    ` Base: ${canal.anosBase.join(", ")}` +
-    (canal.excluidos.length ? ` (excluídos ${canal.excluidos.join(" e ")}, de maior incidência).` : ".") +
-    (abertas.length ? ` Últimas ${SEMANAS_ABERTAS} semanas corrigidas pela proporção de prováveis das semanas já encerradas (${fmt1.format(corr.prop * 100)}%); os pontos vazados mostram o valor sem correção.` : "");
+  nota.textContent = `Base: ${canal.anosBase.join(", ")}` +
+    (canal.excluidos.length ? ` (sem ${canal.excluidos.join(" e ")}, anos epidêmicos).` : ".");
 
   const ymax = Math.max(d3.max(canal.pontos, p => p.q3) || 0, d3.max(atual, d => d.inc) || 0) * 1.15 || 1;
   const bandas = canal.pontos.flatMap(p => [
@@ -623,7 +620,6 @@ function desenharCanal(serie) {
       Plot.lineY(atual.filter(d => !d.aberta), { x: "se", y: "inc", stroke: COR.azulEscuro, strokeWidth: 2.6, curve: "monotone-x" }),
       Plot.lineY(atual.filter((d, i) => d.aberta || (atual[i + 1] && atual[i + 1].aberta)), { x: "se", y: "inc", stroke: COR.azulEscuro, strokeWidth: 2.2, strokeDasharray: "5,3", curve: "monotone-x" }),
       Plot.dot(atual, { x: "se", y: "inc", fill: COR.azulEscuro, r: 2.2 }),
-      Plot.dot(abertas, { x: "se", y: "incBruta", stroke: COR.cinzaEsc, fill: "white", r: 2.6 }),
       // semanas fora do período ficam esmaecidas
       Plot.rect(
         [[0.5, estado.seIni - 0.5], [estado.seFim + 0.5, 52.5]].filter(([a, b]) => b > a)
